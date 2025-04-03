@@ -1,6 +1,7 @@
 import LoginForm from "@/components/auth/login-form";
 import { AuthLayout } from "@/components/layout/auth-layout";
 import { useRouter } from "expo-router";
+import { useEffect } from "react";
 import { Text, TouchableOpacity } from "react-native";
 
 const LoginPage = () => {

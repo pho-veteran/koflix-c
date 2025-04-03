@@ -4,6 +4,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangle } from "lucide-react-native";
 import { GoogleIcon } from "@/assets/auth/icons/google";
 import { useState } from "react";
+import { handleAuthError } from '@/lib/error-handling';
+import { signInWithEmailAndPassword } from "@/lib/firebase-auth";
+import { emailOrPhoneValidator } from "@/lib/validation";
 
 import { VStack } from "../ui/vstack";
 import { HStack } from "../ui/hstack";
@@ -14,9 +17,10 @@ import { FormControl, FormControlError, FormControlErrorIcon, FormControlErrorTe
 import { Input, InputField } from "../ui/input";
 import { Button, ButtonText, ButtonIcon } from "../ui/button";
 
+// Replace inline validation with imported validators
 const formSchema = z.object({
-    emailOrPhone: z.string().min(1, "Email không được để trống").email("Vui lòng nhập email hợp lệ"),
-    password: z.string().min(1, "Mật khẩu không được để trống"),
+    emailOrPhone: emailOrPhoneValidator,
+    password: z.string().min(1, "Mật khẩu không được để trống") // Simplified validation for login
 });
 
 type LoginFormValues = z.infer<typeof formSchema>;
@@ -24,6 +28,7 @@ type LoginFormValues = z.infer<typeof formSchema>;
 const LoginForm = () => {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [validated, setValidated] = useState({
         emailValid: true,
         passwordValid: true
@@ -41,22 +46,41 @@ const LoginForm = () => {
         },
     });
 
+    // Cập nhật cách xử lý lỗi trong onSubmit
+
     const onSubmit = async (data: LoginFormValues) => {
         try {
             setLoading(true);
-            
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            
-            setLoading(false);
-            
-            console.log("Login data:", data);
-        } catch (error) {
-            setLoading(false);
+            setError(null);
             setValidated({
-                emailValid: false,
-                passwordValid: false
+                emailValid: true,
+                passwordValid: true
             });
+            
+            // Actual Firebase login
+            await signInWithEmailAndPassword(data.emailOrPhone, data.password);
+            
+            setLoading(false);
+            // Navigate to home after successful login
+            router.push("/(main)/home");
+        } catch (error: any) {
+            setLoading(false);
+            const errorMessage = handleAuthError(error);
+            setError(errorMessage);
+            
+            // Handle specific error cases
+            if (error.code === 'auth/user-not-found' || 
+                error.code === 'auth/invalid-email' || 
+                error.code === 'auth/invalid-phone-number' ||
+                error.code === 'auth/invalid-credential') {
+                setValidated(prev => ({ ...prev, emailValid: false }));
+            } 
+            else if (error.code === 'auth/wrong-password') {
+                setValidated(prev => ({ ...prev, passwordValid: false }));
+            }
+            else {
+                setValidated({ emailValid: false, passwordValid: false });
+            }
         }
     };
 
@@ -79,7 +103,7 @@ const LoginForm = () => {
                         className="w-full"
                     >
                         <FormControlLabel>
-                            <FormControlLabelText>Email</FormControlLabelText>
+                            <FormControlLabelText>Email/Số điện thoại</FormControlLabelText>
                         </FormControlLabel>
                         <Controller
                             name="emailOrPhone"
@@ -87,7 +111,7 @@ const LoginForm = () => {
                             render={({ field: { onChange, onBlur, value } }) => (
                                 <Input>
                                     <InputField
-                                        placeholder="Nhập email..."
+                                        placeholder="Nhập email hoặc số điện thoại..."
                                         value={value}
                                         onChangeText={onChange}
                                         onBlur={onBlur}
@@ -98,7 +122,7 @@ const LoginForm = () => {
                         <FormControlError>
                             <FormControlErrorIcon as={AlertTriangle} />
                             <FormControlErrorText>
-                                {errors.emailOrPhone?.message || "Email không hợp lệ"}
+                                {errors.emailOrPhone?.message || "Email hoặc số điện thoại không hợp lệ"}
                             </FormControlErrorText>
                         </FormControlError>
                     </FormControl>
@@ -146,8 +170,8 @@ const LoginForm = () => {
                 </VStack>
 
                 <VStack className="w-full my-7" space="lg">
-                    <Button 
-                        className="w-full" 
+                    <Button
+                        className="w-full"
                         onPress={handleSubmit(onSubmit)}
                         disabled={loading}
                     >
@@ -159,7 +183,7 @@ const LoginForm = () => {
                         variant="outline"
                         action="secondary"
                         className="w-full gap-1"
-                        onPress={() => router.push("/(main)/home")}
+                        onPress={() => console.log("Google login pressed")}
                     >
                         <ButtonText className="font-medium">
                             Đăng nhập với Google

@@ -2,24 +2,23 @@ import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangle, EyeIcon, EyeOffIcon } from "lucide-react-native";
-import { GoogleIcon } from "@/assets/auth/icons/google";
 import { useState } from "react";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import auth from '@react-native-firebase/auth';
+
 import { handleAuthError } from '@/lib/error-handling';
+import { passwordStrengthValidator } from "@/lib/validation";
+import { updateUserPassword } from "@/lib/firebase-auth";
 
 import { VStack } from "../ui/vstack";
-import { HStack } from "../ui/hstack";
-import { Link, useRouter } from "expo-router";
 import { Heading } from "../ui/heading";
 import { Text } from "../ui/text";
 import { FormControl, FormControlError, FormControlErrorIcon, FormControlErrorText, FormControlLabel, FormControlLabelText } from "../ui/form-control";
 import { Input, InputField, InputSlot, InputIcon } from "../ui/input";
-import { Button, ButtonText, ButtonIcon } from "../ui/button";
-import { signUpWithEmailAndPassword, sendEmailVerification, startPhoneAuth } from "@/lib/firebase-auth";
-import { emailOrPhoneValidator, formatPhoneNumber, isEmail, isPhone, passwordStrengthValidator } from "@/lib/validation";
+import { Button, ButtonText } from "../ui/button";
 
+// Schema cho form đặt lại mật khẩu
 const formSchema = z.object({
-    name: z.string().min(2, "Tên phải có ít nhất 2 ký tự"),
-    emailOrPhone: emailOrPhoneValidator,
     password: passwordStrengthValidator,
     confirmPassword: z.string().min(1, "Vui lòng xác nhận mật khẩu"),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -27,24 +26,28 @@ const formSchema = z.object({
     path: ["confirmPassword"],
 });
 
-type SignupFormValues = z.infer<typeof formSchema>;
+type ResetPasswordFormValues = z.infer<typeof formSchema>;
 
-const SignupForm = () => {
+const ResetPasswordForm = () => {
     const router = useRouter();
+    const params = useLocalSearchParams<{ 
+        phoneNumber?: string,
+        uid?: string 
+    }>();
+    
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState(false);
 
     const {
         control,
         handleSubmit,
         formState: { errors },
-    } = useForm<SignupFormValues>({
+    } = useForm<ResetPasswordFormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            name: "",
-            emailOrPhone: "",
             password: "",
             confirmPassword: "",
         },
@@ -58,41 +61,26 @@ const SignupForm = () => {
         setShowConfirmPassword(prev => !prev);
     };
 
-    const onSubmit = async (data: SignupFormValues) => {
+    const onSubmit = async (data: ResetPasswordFormValues) => {
         try {
             setLoading(true);
             setError(null);
 
-            if (isEmail(data.emailOrPhone)) {
-                await signUpWithEmailAndPassword(
-                    data.emailOrPhone,
-                    data.password,
-                    data.name
-                );
-                
-                console.log("Email signup successful");
+            // Cập nhật mật khẩu
+            await updateUserPassword(data.password);
 
-            } else if (isPhone(data.emailOrPhone)) {
-                // Phone signup - requires different flow
-                const phoneNumber = formatPhoneNumber(data.emailOrPhone);
-                const confirmation = await startPhoneAuth(phoneNumber);
-
-                // Store verification ID in secure storage or state management
-                router.push({
-                    pathname: "/(auth)/verify-code",
-                    params: {
-                        phone: data.emailOrPhone,
-                        verificationId: confirmation.verificationId
-                    }
-                });
-            }
-
+            // Thành công
+            setSuccess(true);
             setLoading(false);
+
+            // Chuyển về trang đăng nhập sau 3 giây
+            setTimeout(() => {
+                router.replace("/(auth)/login");
+            }, 3000);
         } catch (error: any) {
             setLoading(false);
             const errorMessage = handleAuthError(error);
             setError(errorMessage);
-            console.error("Signup failed", error);
         }
     };
 
@@ -101,89 +89,39 @@ const SignupForm = () => {
             <VStack className="md:items-center" space="md">
                 <VStack space="sm" className="my-4">
                     <Heading className="md:text-center" size="2xl">
-                        Tạo tài khoản mới
+                        Đặt lại mật khẩu
                     </Heading>
                     <Text className="md:text-center">
-                        Đăng ký để tận hưởng các bộ phim bạn yêu thích!
+                        Vui lòng nhập mật khẩu mới của bạn.
                     </Text>
                 </VStack>
             </VStack>
 
             {error && (
-                <FormControl isInvalid={true} className="mb-2 w-3/4 justify-center flex">
-                    <FormControlError className="gap-4">
+                <FormControl isInvalid={true} className="mb-2">
+                    <FormControlError className="justify-center">
                         <FormControlErrorIcon as={AlertTriangle} />
                         <FormControlErrorText>{error}</FormControlErrorText>
                     </FormControlError>
                 </FormControl>
             )}
 
+            {success && (
+                <FormControl className="mb-2">
+                    <Text className="text-green-600 text-center">
+                        Mật khẩu đã được cập nhật thành công! Đang chuyển hướng đến trang đăng nhập...
+                    </Text>
+                </FormControl>
+            )}
+
             <VStack className="w-full">
                 <VStack space="xl" className="w-full">
-                    <FormControl
-                        isInvalid={!!errors.name}
-                        className="w-full"
-                    >
-                        <FormControlLabel>
-                            <FormControlLabelText>Tên của bạn</FormControlLabelText>
-                        </FormControlLabel>
-                        <Controller
-                            name="name"
-                            control={control}
-                            render={({ field: { onChange, onBlur, value } }) => (
-                                <Input>
-                                    <InputField
-                                        placeholder="Nhập tên của bạn..."
-                                        value={value}
-                                        onChangeText={onChange}
-                                        onBlur={onBlur}
-                                    />
-                                </Input>
-                            )}
-                        />
-                        <FormControlError>
-                            <FormControlErrorIcon as={AlertTriangle} />
-                            <FormControlErrorText>
-                                {errors.name?.message}
-                            </FormControlErrorText>
-                        </FormControlError>
-                    </FormControl>
-
-                    <FormControl
-                        isInvalid={!!errors.emailOrPhone}
-                        className="w-full"
-                    >
-                        <FormControlLabel>
-                            <FormControlLabelText>Email/Số điện thoại</FormControlLabelText>
-                        </FormControlLabel>
-                        <Controller
-                            name="emailOrPhone"
-                            control={control}
-                            render={({ field: { onChange, onBlur, value } }) => (
-                                <Input>
-                                    <InputField
-                                        placeholder="Nhập email hoặc số điện thoại..."
-                                        value={value}
-                                        onChangeText={onChange}
-                                        onBlur={onBlur}
-                                    />
-                                </Input>
-                            )}
-                        />
-                        <FormControlError>
-                            <FormControlErrorIcon as={AlertTriangle} />
-                            <FormControlErrorText>
-                                {errors.emailOrPhone?.message}
-                            </FormControlErrorText>
-                        </FormControlError>
-                    </FormControl>
-
                     <FormControl
                         isInvalid={!!errors.password}
                         className="w-full"
                     >
                         <FormControlLabel>
-                            <FormControlLabelText>Mật khẩu</FormControlLabelText>
+                            <FormControlLabelText>Mật khẩu mới</FormControlLabelText>
                         </FormControlLabel>
                         <Controller
                             name="password"
@@ -192,7 +130,7 @@ const SignupForm = () => {
                                 <Input>
                                     <InputField
                                         type={showPassword ? "text" : "password"}
-                                        placeholder="Nhập mật khẩu..."
+                                        placeholder="Nhập mật khẩu mới..."
                                         value={value}
                                         onChangeText={onChange}
                                         onBlur={onBlur}
@@ -249,41 +187,16 @@ const SignupForm = () => {
                     <Button
                         className="w-full"
                         onPress={handleSubmit(onSubmit)}
-                        disabled={loading}
-                    >
-                        {loading ? (
-                            <ButtonText className="font-medium">Đang xử lý...</ButtonText>
-                        ) : (
-                            <ButtonText className="font-medium">Đăng ký</ButtonText>
-                        )}
-                    </Button>
-                    <Button
-                        variant="outline"
-                        action="secondary"
-                        className="w-full gap-1"
-                        onPress={() => console.log("Google login")}
+                        isDisabled={loading || success}
                     >
                         <ButtonText className="font-medium">
-                            Đăng ký với Google
+                            {loading ? "Đang xử lý..." : "Cập nhật mật khẩu"}
                         </ButtonText>
-                        <ButtonIcon as={GoogleIcon} />
                     </Button>
                 </VStack>
-
-                <HStack className="self-center" space="sm">
-                    <Text size="md">Đã có tài khoản?</Text>
-                    <Link href="/(auth)/login">
-                        <Text
-                            className="font-medium text-primary-700 group-hover/link:text-primary-600 group-hover/pressed:text-primary-700"
-                            size="md"
-                        >
-                            Đăng nhập
-                        </Text>
-                    </Link>
-                </HStack>
             </VStack>
         </VStack>
     );
 };
 
-export default SignupForm;
+export default ResetPasswordForm;

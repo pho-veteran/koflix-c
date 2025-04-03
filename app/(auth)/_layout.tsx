@@ -1,6 +1,19 @@
+import { useAuth } from "@/lib/auth-context";
 import { Stack } from "expo-router";
+import { View, ActivityIndicator } from "react-native";
 
 export default function AuthLayout() {
+    const { isLoading } = useAuth();
+
+    // Show loading indicator while checking auth state
+    if (isLoading) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#121212' }}>
+                <ActivityIndicator size="large" color="#E50914" />
+            </View>
+        );
+    }
+
     return (
         <Stack
             screenOptions={{
@@ -35,6 +48,12 @@ export default function AuthLayout() {
                 name="verify-code"
                 options={{
                     title: "Xác thực OTP",
+                }}
+            />
+            <Stack.Screen
+                name="reset-password"
+                options={{
+                    title: "Đặt lại mật khẩu",
                 }}
             />
         </Stack>

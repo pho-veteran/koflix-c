@@ -12,9 +12,12 @@ import { Text } from "../ui/text";
 import { FormControl, FormControlError, FormControlErrorIcon, FormControlErrorText, FormControlLabel, FormControlLabelText } from "../ui/form-control";
 import { Input, InputField } from "../ui/input";
 import { Button, ButtonText } from "../ui/button";
+import { sendPasswordResetEmail, startPhoneAuth } from "@/lib/firebase-auth";
+import { handleAuthError } from '@/lib/error-handling';
+import { emailOrPhoneValidator, formatPhoneNumber, isEmail, isPhone } from "@/lib/validation";
 
 const formSchema = z.object({
-    emailOrPhone: z.string().email("Vui lòng nhập email hợp lệ!"),
+    emailOrPhone: emailOrPhoneValidator
 });
 
 type ForgotPasswordFormValues = z.infer<typeof formSchema>;
@@ -25,6 +28,8 @@ const ForgotPasswordForm = () => {
         emailValid: true
     });
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState(false);
 
     const {
         control,
@@ -37,18 +42,50 @@ const ForgotPasswordForm = () => {
         },
     });
 
+    // Cập nhật hàm onSubmit để xử lý cả email và số điện thoại
+
     const onSubmit = async (data: ForgotPasswordFormValues) => {
         try {
             setLoading(true);
-            
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            
+            setError(null);
+            setValidated({ emailValid: true });
+
+            // Kiểm tra xem đầu vào là email hay số điện thoại
+            if (isEmail(data.emailOrPhone)) {
+                // Đặt lại mật khẩu qua email
+                await sendPasswordResetEmail(data.emailOrPhone);
+                
+                setSuccess(true);
+                // Hiển thị thông báo thành công và chuyển về login sau 3s
+                setTimeout(() => {
+                    router.push("/(auth)/login");
+                }, 3000);
+            } else if (isPhone(data.emailOrPhone)) {
+                // Đặt lại mật khẩu qua số điện thoại - gửi OTP
+                const formattedPhone = formatPhoneNumber(data.emailOrPhone);
+                const confirmation = await startPhoneAuth(formattedPhone);
+                
+                // Chuyển đến trang xác thực OTP
+                router.push({
+                    pathname: "/(auth)/verify-code",
+                    params: { 
+                        phone: data.emailOrPhone,
+                        verificationId: confirmation.verificationId,
+                        resetPassword: "true" // Đánh dấu đây là flow đặt lại mật khẩu
+                    }
+                });
+            } else {
+                throw {
+                    code: 'auth/invalid-credential',
+                    message: 'Vui lòng nhập email hoặc số điện thoại hợp lệ'
+                };
+            }
+
             setLoading(false);
-            // Navigate to login
-            router.push("/(auth)/login");
-        } catch (error) {
+        } catch (error: any) {
             setLoading(false);
+            const errorMessage = handleAuthError(error);
+            setError(errorMessage);
             setValidated({
                 emailValid: false
             });
@@ -63,10 +100,24 @@ const ForgotPasswordForm = () => {
                         Quên mật khẩu
                     </Heading>
                     <Text className="md:text-center">
-                        Vui lòng nhập địa chỉ email của bạn. Chúng tôi sẽ gửi một liên kết đặt lại mật khẩu đến email của bạn.
+                        Vui lòng nhập email hoặc số điện thoại của bạn. Chúng tôi sẽ gửi một liên kết đặt lại mật khẩu hoặc mã xác thực để giúp bạn khôi phục tài khoản.
                     </Text>
                 </VStack>
             </VStack>
+
+            {error && (
+                <FormControlError className="justify-center mb-2">
+                    <FormControlErrorIcon as={AlertTriangle} />
+                    <FormControlErrorText>{error}</FormControlErrorText>
+                </FormControlError>
+            )}
+
+            {success && (
+                <Text className="text-green-600 text-center mb-2">
+                    Email đặt lại mật khẩu đã được gửi. Vui lòng kiểm tra hộp thư của bạn.
+                </Text>
+            )}
+
             <VStack className="w-full">
                 <VStack space="xl" className="w-full">
                     <FormControl
@@ -74,7 +125,7 @@ const ForgotPasswordForm = () => {
                         className="w-full"
                     >
                         <FormControlLabel>
-                            <FormControlLabelText>Email</FormControlLabelText>
+                            <FormControlLabelText>Email/Số điện thoại</FormControlLabelText>
                         </FormControlLabel>
                         <Controller
                             name="emailOrPhone"
@@ -82,7 +133,7 @@ const ForgotPasswordForm = () => {
                             render={({ field: { onChange, onBlur, value } }) => (
                                 <Input>
                                     <InputField
-                                        placeholder="Nhập email..."
+                                        placeholder="Nhập email hoặc số điện thoại..."
                                         value={value}
                                         onChangeText={onChange}
                                         onBlur={onBlur}
@@ -93,20 +144,20 @@ const ForgotPasswordForm = () => {
                         <FormControlError>
                             <FormControlErrorIcon as={AlertTriangle} />
                             <FormControlErrorText>
-                                {errors.emailOrPhone?.message || "Email không hợp lệ"}
+                                {errors.emailOrPhone?.message || "Email hoặc số điện thoại không hợp lệ"}
                             </FormControlErrorText>
                         </FormControlError>
                     </FormControl>
                 </VStack>
 
                 <VStack className="w-full my-7" space="lg">
-                    <Button 
-                        className="w-full" 
+                    <Button
+                        className="w-full"
                         onPress={handleSubmit(onSubmit)}
                         isDisabled={loading}
                     >
                         <ButtonText className="font-medium">
-                            {loading ? "Đang xử lý..." : "Gửi link đặt lại mật khẩu"}
+                            {loading ? "Đang xử lý..." : "Đặt lại mật khẩu"}
                         </ButtonText>
                     </Button>
 

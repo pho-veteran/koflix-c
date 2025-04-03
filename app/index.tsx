@@ -1,20 +1,11 @@
+import { useAuth } from "@/lib/auth-context";
 import { Redirect } from "expo-router";
 import { View, ActivityIndicator } from "react-native";
-import { useEffect, useState } from "react";
 
 export default function Index() {
-    const [isLoading, setIsLoading] = useState(true);
+    const { user, isLoading } = useAuth();
     
-    // Add a small delay to simulate app initialization
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setIsLoading(false);
-        }, 1000);
-        
-        return () => clearTimeout(timer);
-    }, []);
-    
-    // Show a loading state briefly before redirecting
+    // Show loading state while checking authentication
     if (isLoading) {
         return (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#121212' }}>
@@ -23,6 +14,6 @@ export default function Index() {
         );
     }
 
-    // Always redirect to login page
-    return <Redirect href="/(auth)/login" />;
+    // Simply redirect based on authentication status
+    return user ? <Redirect href="/(main)/home" /> : <Redirect href="/(auth)/login" />;
 }

@@ -3,8 +3,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState, useEffect } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Platform } from 'react-native';
 
+import { handleAuthError } from '@/lib/error-handling';
 import { AlertTriangle } from "lucide-react-native";
 import { VStack } from "../ui/vstack";
 import { Heading } from "../ui/heading";
@@ -13,6 +13,8 @@ import { Button, ButtonText } from "../ui/button";
 import { FormControl, FormControlError, FormControlErrorIcon, FormControlErrorText } from "../ui/form-control";
 import { PinInput, PinInputField } from "../ui/pin-input";
 import { OTPTimer } from "../ui/otp-timer";
+import { sendEmailVerification, verifyOTP, startPhoneAuth } from "@/lib/firebase-auth";
+import { getPrettyPhoneNumber } from "@/lib/validation";
 
 const formSchema = z.object({
     otp: z.string().length(6, "Hãy nhập đầy đủ mã OTP").regex(/^\d+$/, "Mã OTP chỉ được chứa số")
@@ -22,7 +24,12 @@ type VerifyCodeFormValues = z.infer<typeof formSchema>;
 
 const VerifyCodeForm = () => {
     const router = useRouter();
-    const params = useLocalSearchParams<{ phone?: string, email?: string }>();
+    const params = useLocalSearchParams<{ 
+        phone?: string, 
+        email?: string, 
+        verificationId?: string,
+        resetPassword?: string // Thêm tham số này để xác định flow
+    }>();
     const [pinValue, setPinValue] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -44,36 +51,67 @@ const VerifyCodeForm = () => {
         setValue("otp", pinValue, { shouldValidate: true });
     }, [pinValue, setValue]);
 
+    // Cập nhật hàm handleResendCode
     const handleResendCode = async () => {
         try {
             setLoading(true);
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            setLoading(false);
+            setError(null);
             
-            // Clear the OTP fields
+            if (params.phone) {
+                // Gửi lại mã xác thực
+                await startPhoneAuth(params.phone);
+            } else if (params.email) {
+                // Gửi lại xác thực email
+                await sendEmailVerification();
+            }
+            
+            setLoading(false);
             setPinValue("");
             setValue("otp", "");
             
             return Promise.resolve();
-        } catch (error) {
+        } catch (error: any) {
             setLoading(false);
+            const errorMessage = handleAuthError(error);
+            setError(errorMessage);
             return Promise.reject(error);
         }
     };
 
+    // Sửa lại đường dẫn điều hướng trong onSubmit
+
     const onSubmit = async (data: VerifyCodeFormValues) => {
         try {
             setLoading(true);
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            setLoading(false);
+            setError(null);
             
-            // If successful, navigate to home or appropriate screen
-            router.push("/(main)/home");
-        } catch (error) {
+            if (params.verificationId && params.phone) {
+                // Xác thực OTP
+                const result = await verifyOTP(params.verificationId, data.otp);
+                
+                // Kiểm tra xem đây có phải là flow đặt lại mật khẩu không
+                if (params.resetPassword === "true") {
+                    // Chuyển đến trang đặt lại mật khẩu mới - sửa đường dẫn
+                    router.push({
+                        pathname: "/(auth)/reset-password",
+                        params: { 
+                            phoneNumber: params.phone,
+                            uid: result.user.uid 
+                        }
+                    });
+                } else {
+                    // Luồng đăng ký thông thường - chuyển đến trang chính
+                    router.replace("/(main)/home"); // Sửa thành đường dẫn tabs chính của ứng dụng
+                }
+            } else {
+                throw new Error("Không tìm thấy thông tin xác thực");
+            }
+            
             setLoading(false);
-            setError("Verification failed");
+        } catch (error: any) {
+            setLoading(false);
+            const errorMessage = handleAuthError(error);
+            setError(errorMessage);
         }
     };
 
@@ -85,7 +123,8 @@ const VerifyCodeForm = () => {
                         Nhập mã xác thực
                     </Heading>
                     <Text className="md:text-center">
-                        Mã xác thực đã được gửi đến {params.phone || params.email || "your device"}. Vui lòng kiểm tra và nhập mã để xác thực.
+                        Mã xác thực đã được gửi đến {params.phone ? getPrettyPhoneNumber(params.phone) : params.email || "thiết bị của bạn"}. 
+                        Vui lòng kiểm tra và nhập mã để xác thực.
                     </Text>
                 </VStack>
             </VStack>
