@@ -1,18 +1,28 @@
-import { Box } from "@/components/ui/box";
-import { Text, View } from "react-native";
+import { Redirect } from "expo-router";
+import { View, ActivityIndicator } from "react-native";
+import { useEffect, useState } from "react";
 
 export default function Index() {
-  return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <Box className="bg-primary-500 p-5">
-        <Text className="text-typography-0">This is the Box</Text>
-      </Box>
-    </View>
-  );
+    const [isLoading, setIsLoading] = useState(true);
+    
+    // Add a small delay to simulate app initialization
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setIsLoading(false);
+        }, 1000);
+        
+        return () => clearTimeout(timer);
+    }, []);
+    
+    // Show a loading state briefly before redirecting
+    if (isLoading) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#121212' }}>
+                <ActivityIndicator size="large" color="#E50914" />
+            </View>
+        );
+    }
+
+    // Always redirect to login page
+    return <Redirect href="/(auth)/login" />;
 }
