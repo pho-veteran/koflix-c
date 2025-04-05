@@ -1,20 +1,29 @@
-import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useState, useEffect } from "react";
-import { useRouter, useLocalSearchParams } from "expo-router";
-
-import { handleAuthError } from '@/lib/error-handling';
+// External libraries
 import { AlertTriangle } from "lucide-react-native";
-import { VStack } from "../ui/vstack";
-import { Heading } from "../ui/heading";
-import { Text } from "../ui/text";
-import { Button, ButtonText } from "../ui/button";
-import { FormControl, FormControlError, FormControlErrorIcon, FormControlErrorText } from "../ui/form-control";
-import { PinInput, PinInputField } from "../ui/pin-input";
-import { OTPTimer } from "../ui/otp-timer";
+import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+// Application utils and services
+import { handleAuthError } from '@/lib/error-handling';
 import { sendEmailVerification, verifyOTP, startPhoneAuth } from "@/lib/firebase-auth";
 import { getPrettyPhoneNumber } from "@/lib/validation";
+
+// UI Components
+import { Button, ButtonText } from "../ui/button";
+import { 
+    FormControl, 
+    FormControlError, 
+    FormControlErrorIcon, 
+    FormControlErrorText 
+} from "../ui/form-control";
+import { Heading } from "../ui/heading";
+import { OTPTimer } from "../ui/otp-timer";
+import { PinInput, PinInputField } from "../ui/pin-input";
+import { Text } from "../ui/text";
+import { VStack } from "../ui/vstack";
 
 const formSchema = z.object({
     otp: z.string().length(6, "Hãy nhập đầy đủ mã OTP").regex(/^\d+$/, "Mã OTP chỉ được chứa số")
@@ -28,7 +37,8 @@ const VerifyCodeForm = () => {
         phone?: string, 
         email?: string, 
         verificationId?: string,
-        resetPassword?: string // Thêm tham số này để xác định flow
+        resetPassword?: string,
+        isLogin?: string
     }>();
     const [pinValue, setPinValue] = useState('');
     const [loading, setLoading] = useState(false);
@@ -46,22 +56,18 @@ const VerifyCodeForm = () => {
         mode: "onChange",
     });
 
-    // Update form value when PIN changes
     useEffect(() => {
         setValue("otp", pinValue, { shouldValidate: true });
     }, [pinValue, setValue]);
 
-    // Cập nhật hàm handleResendCode
     const handleResendCode = async () => {
         try {
             setLoading(true);
             setError(null);
             
             if (params.phone) {
-                // Gửi lại mã xác thực
                 await startPhoneAuth(params.phone);
             } else if (params.email) {
-                // Gửi lại xác thực email
                 await sendEmailVerification();
             }
             
@@ -78,30 +84,24 @@ const VerifyCodeForm = () => {
         }
     };
 
-    // Sửa lại đường dẫn điều hướng trong onSubmit
-
     const onSubmit = async (data: VerifyCodeFormValues) => {
         try {
             setLoading(true);
             setError(null);
             
             if (params.verificationId && params.phone) {
-                // Xác thực OTP
                 const result = await verifyOTP(params.verificationId, data.otp);
                 
-                // Kiểm tra xem đây có phải là flow đặt lại mật khẩu không
                 if (params.resetPassword === "true") {
-                    // Chuyển đến trang đặt lại mật khẩu mới - sửa đường dẫn
-                    router.push({
+                    router.replace({
                         pathname: "/(auth)/reset-password",
                         params: { 
                             phoneNumber: params.phone,
                             uid: result.user.uid 
                         }
                     });
-                } else {
-                    // Luồng đăng ký thông thường - chuyển đến trang chính
-                    router.replace("/(main)/home"); // Sửa thành đường dẫn tabs chính của ứng dụng
+                } else if (params.isLogin === "true") {
+                    router.replace("/(main)/home");
                 }
             } else {
                 throw new Error("Không tìm thấy thông tin xác thực");

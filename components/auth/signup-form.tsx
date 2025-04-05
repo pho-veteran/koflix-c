@@ -1,22 +1,34 @@
-import { z } from "zod";
-import { useForm, Controller } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+// External libraries
 import { AlertTriangle, EyeIcon, EyeOffIcon } from "lucide-react-native";
-import { GoogleIcon } from "@/assets/auth/icons/google";
 import { useState } from "react";
-import { handleAuthError } from '@/lib/error-handling';
-
-import { VStack } from "../ui/vstack";
-import { HStack } from "../ui/hstack";
+import { useForm, Controller } from "react-hook-form";
 import { Link, useRouter } from "expo-router";
-import { Heading } from "../ui/heading";
-import { Text } from "../ui/text";
-import { FormControl, FormControlError, FormControlErrorIcon, FormControlErrorText, FormControlLabel, FormControlLabelText } from "../ui/form-control";
-import { Input, InputField, InputSlot, InputIcon } from "../ui/input";
-import { Button, ButtonText, ButtonIcon } from "../ui/button";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+// Application utils and services
+import { GoogleIcon } from "@/assets/auth/icons/google";
+import { handleAuthError } from '@/lib/error-handling';
 import { signUpWithEmailAndPassword, sendEmailVerification, startPhoneAuth } from "@/lib/firebase-auth";
 import { emailOrPhoneValidator, formatPhoneNumber, isEmail, isPhone, passwordStrengthValidator } from "@/lib/validation";
 
+// UI Components
+import { Button, ButtonText, ButtonIcon } from "../ui/button";
+import { 
+    FormControl, 
+    FormControlError, 
+    FormControlErrorIcon, 
+    FormControlErrorText, 
+    FormControlLabel, 
+    FormControlLabelText 
+} from "../ui/form-control";
+import { Heading } from "../ui/heading";
+import { HStack } from "../ui/hstack";
+import { Input, InputField, InputSlot, InputIcon } from "../ui/input";
+import { Text } from "../ui/text";
+import { VStack } from "../ui/vstack";
+
+// Form schema
 const formSchema = z.object({
     name: z.string().min(2, "Tên phải có ít nhất 2 ký tự"),
     emailOrPhone: emailOrPhoneValidator,
@@ -73,11 +85,9 @@ const SignupForm = () => {
                 console.log("Email signup successful");
 
             } else if (isPhone(data.emailOrPhone)) {
-                // Phone signup - requires different flow
                 const phoneNumber = formatPhoneNumber(data.emailOrPhone);
                 const confirmation = await startPhoneAuth(phoneNumber);
 
-                // Store verification ID in secure storage or state management
                 router.push({
                     pathname: "/(auth)/verify-code",
                     params: {
@@ -262,6 +272,7 @@ const SignupForm = () => {
                         action="secondary"
                         className="w-full gap-1"
                         onPress={() => console.log("Google login")}
+                        disabled={true}
                     >
                         <ButtonText className="font-medium">
                             Đăng ký với Google

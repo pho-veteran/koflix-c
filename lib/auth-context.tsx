@@ -38,7 +38,7 @@ function useProtectedRoute(user: any) {
     if (!user && inMainGroup) {
       // If user is not signed in and trying to access protected routes
       router.replace("/(auth)/login");
-    } else if (user && inAuthGroup) {
+    } else if (user && inAuthGroup && segments[1] !== "reset-password") {
       // If user is signed in and trying to access auth routes
       router.replace("/(main)/home");
     }

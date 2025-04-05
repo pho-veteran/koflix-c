@@ -1,23 +1,31 @@
-import { z } from "zod";
-import { useForm, Controller } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+// External libraries
 import { AlertTriangle, EyeIcon, EyeOffIcon } from "lucide-react-native";
 import { useState } from "react";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import auth from '@react-native-firebase/auth';
+import { Controller, useForm } from "react-hook-form";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 
+// Application utils and services
+import { updateUserPassword } from "@/lib/firebase-auth";
 import { handleAuthError } from '@/lib/error-handling';
 import { passwordStrengthValidator } from "@/lib/validation";
-import { updateUserPassword } from "@/lib/firebase-auth";
 
-import { VStack } from "../ui/vstack";
-import { Heading } from "../ui/heading";
-import { Text } from "../ui/text";
-import { FormControl, FormControlError, FormControlErrorIcon, FormControlErrorText, FormControlLabel, FormControlLabelText } from "../ui/form-control";
-import { Input, InputField, InputSlot, InputIcon } from "../ui/input";
+// UI Components
 import { Button, ButtonText } from "../ui/button";
+import { 
+    FormControl, 
+    FormControlError, 
+    FormControlErrorIcon, 
+    FormControlErrorText, 
+    FormControlLabel, 
+    FormControlLabelText 
+} from "../ui/form-control";
+import { Heading } from "../ui/heading";
+import { Input, InputField, InputIcon, InputSlot } from "../ui/input";
+import { Text } from "../ui/text";
+import { VStack } from "../ui/vstack";
 
-// Schema cho form đặt lại mật khẩu
 const formSchema = z.object({
     password: passwordStrengthValidator,
     confirmPassword: z.string().min(1, "Vui lòng xác nhận mật khẩu"),
@@ -66,14 +74,11 @@ const ResetPasswordForm = () => {
             setLoading(true);
             setError(null);
 
-            // Cập nhật mật khẩu
             await updateUserPassword(data.password);
 
-            // Thành công
             setSuccess(true);
             setLoading(false);
 
-            // Chuyển về trang đăng nhập sau 3 giây
             setTimeout(() => {
                 router.replace("/(auth)/login");
             }, 3000);
@@ -109,7 +114,7 @@ const ResetPasswordForm = () => {
             {success && (
                 <FormControl className="mb-2">
                     <Text className="text-green-600 text-center">
-                        Mật khẩu đã được cập nhật thành công! Đang chuyển hướng đến trang đăng nhập...
+                        Mật khẩu đã được cập nhật thành công! Đang chuyển hướng về trang chủ...
                     </Text>
                 </FormControl>
             )}

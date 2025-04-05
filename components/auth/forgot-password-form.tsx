@@ -1,21 +1,33 @@
-import { z } from "zod";
-import { useForm, Controller } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+// External libraries
 import { AlertTriangle } from "lucide-react-native";
 import { useState } from "react";
-
-import { VStack } from "../ui/vstack";
-import { HStack } from "../ui/hstack";
+import { useForm, Controller } from "react-hook-form";
 import { Link, useRouter } from "expo-router";
-import { Heading } from "../ui/heading";
-import { Text } from "../ui/text";
-import { FormControl, FormControlError, FormControlErrorIcon, FormControlErrorText, FormControlLabel, FormControlLabelText } from "../ui/form-control";
-import { Input, InputField } from "../ui/input";
-import { Button, ButtonText } from "../ui/button";
-import { sendPasswordResetEmail, startPhoneAuth } from "@/lib/firebase-auth";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+// Application utils and services
 import { handleAuthError } from '@/lib/error-handling';
+import { sendPasswordResetEmail, startPhoneAuth } from "@/lib/firebase-auth";
 import { emailOrPhoneValidator, formatPhoneNumber, isEmail, isPhone } from "@/lib/validation";
 
+// UI Components
+import { Button, ButtonText } from "../ui/button";
+import { 
+    FormControl, 
+    FormControlError, 
+    FormControlErrorIcon, 
+    FormControlErrorText, 
+    FormControlLabel, 
+    FormControlLabelText 
+} from "../ui/form-control";
+import { Heading } from "../ui/heading";
+import { HStack } from "../ui/hstack";
+import { Input, InputField } from "../ui/input";
+import { Text } from "../ui/text";
+import { VStack } from "../ui/vstack";
+
+// Form schema
 const formSchema = z.object({
     emailOrPhone: emailOrPhoneValidator
 });
@@ -42,36 +54,29 @@ const ForgotPasswordForm = () => {
         },
     });
 
-    // Cập nhật hàm onSubmit để xử lý cả email và số điện thoại
-
     const onSubmit = async (data: ForgotPasswordFormValues) => {
         try {
             setLoading(true);
             setError(null);
             setValidated({ emailValid: true });
 
-            // Kiểm tra xem đầu vào là email hay số điện thoại
             if (isEmail(data.emailOrPhone)) {
-                // Đặt lại mật khẩu qua email
                 await sendPasswordResetEmail(data.emailOrPhone);
                 
                 setSuccess(true);
-                // Hiển thị thông báo thành công và chuyển về login sau 3s
                 setTimeout(() => {
                     router.push("/(auth)/login");
                 }, 3000);
             } else if (isPhone(data.emailOrPhone)) {
-                // Đặt lại mật khẩu qua số điện thoại - gửi OTP
                 const formattedPhone = formatPhoneNumber(data.emailOrPhone);
                 const confirmation = await startPhoneAuth(formattedPhone);
                 
-                // Chuyển đến trang xác thực OTP
                 router.push({
                     pathname: "/(auth)/verify-code",
                     params: { 
                         phone: data.emailOrPhone,
                         verificationId: confirmation.verificationId,
-                        resetPassword: "true" // Đánh dấu đây là flow đặt lại mật khẩu
+                        resetPassword: "true"
                     }
                 });
             } else {

@@ -5,8 +5,8 @@ import { AlertTriangle } from "lucide-react-native";
 import { GoogleIcon } from "@/assets/auth/icons/google";
 import { useState } from "react";
 import { handleAuthError } from '@/lib/error-handling';
-import { signInWithEmailAndPassword } from "@/lib/firebase-auth";
-import { emailOrPhoneValidator } from "@/lib/validation";
+import { signInWithEmailAndPassword, startPhoneAuth } from "@/lib/firebase-auth";
+import { emailOrPhoneValidator, formatPhoneNumber, isPhone } from "@/lib/validation";
 
 import { VStack } from "../ui/vstack";
 import { HStack } from "../ui/hstack";
@@ -17,10 +17,9 @@ import { FormControl, FormControlError, FormControlErrorIcon, FormControlErrorTe
 import { Input, InputField } from "../ui/input";
 import { Button, ButtonText, ButtonIcon } from "../ui/button";
 
-// Replace inline validation with imported validators
 const formSchema = z.object({
     emailOrPhone: emailOrPhoneValidator,
-    password: z.string().min(1, "Mật khẩu không được để trống") // Simplified validation for login
+    password: z.string().min(1, "Mật khẩu không được để trống")
 });
 
 type LoginFormValues = z.infer<typeof formSchema>;
@@ -46,8 +45,6 @@ const LoginForm = () => {
         },
     });
 
-    // Cập nhật cách xử lý lỗi trong onSubmit
-
     const onSubmit = async (data: LoginFormValues) => {
         try {
             setLoading(true);
@@ -57,12 +54,29 @@ const LoginForm = () => {
                 passwordValid: true
             });
             
-            // Actual Firebase login
-            await signInWithEmailAndPassword(data.emailOrPhone, data.password);
+            if (isPhone(data.emailOrPhone)) {
+                // Phone login flow - request OTP
+                const formattedPhone = formatPhoneNumber(data.emailOrPhone);
+                const confirmation = await startPhoneAuth(formattedPhone);
+                
+                // Navigate to OTP verification screen
+                router.push({
+                    pathname: "/(auth)/verify-code",
+                    params: { 
+                        phone: data.emailOrPhone,
+                        verificationId: confirmation.verificationId,
+                        isLogin: "true" // Mark this as a login flow
+                    }
+                });
+            } else {
+                // Email login flow
+                await signInWithEmailAndPassword(data.emailOrPhone, data.password);
+                
+                // Navigate to home after successful login
+                router.push("/(main)/home");
+            }
             
             setLoading(false);
-            // Navigate to home after successful login
-            router.push("/(main)/home");
         } catch (error: any) {
             setLoading(false);
             const errorMessage = handleAuthError(error);
@@ -184,6 +198,7 @@ const LoginForm = () => {
                         action="secondary"
                         className="w-full gap-1"
                         onPress={() => console.log("Google login pressed")}
+                        disabled={true}
                     >
                         <ButtonText className="font-medium">
                             Đăng nhập với Google
