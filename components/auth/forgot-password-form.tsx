@@ -7,9 +7,8 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 // Application utils and services
-import { handleAuthError } from '@/lib/error-handling';
 import { sendPasswordResetEmail, startPhoneAuth } from "@/lib/firebase-auth";
-import { emailOrPhoneValidator, formatPhoneNumber, isEmail, isPhone } from "@/lib/validation";
+import { emailOrPhoneValidator, isEmail, isPhone } from "@/lib/validation";
 
 // UI Components
 import { Button, ButtonText } from "../ui/button";
@@ -55,52 +54,56 @@ const ForgotPasswordForm = () => {
     });
 
     const onSubmit = async (data: ForgotPasswordFormValues) => {
-        try {
-            setLoading(true);
-            setError(null);
-            setValidated({ emailValid: true });
+        setLoading(true);
+        setError(null);
+        setValidated({ emailValid: true });
 
-            if (isEmail(data.emailOrPhone)) {
-                await sendPasswordResetEmail(data.emailOrPhone);
-                
-                setSuccess(true);
-                setTimeout(() => {
-                    router.push("/(auth)/login");
-                }, 3000);
-            } else if (isPhone(data.emailOrPhone)) {
-                const formattedPhone = formatPhoneNumber(data.emailOrPhone);
-                const confirmation = await startPhoneAuth(formattedPhone);
-                
-                router.push({
-                    pathname: "/(auth)/verify-code",
-                    params: { 
-                        phone: data.emailOrPhone,
-                        verificationId: confirmation.verificationId,
-                        resetPassword: "true"
-                    }
-                });
-            } else {
-                throw {
-                    code: 'auth/invalid-credential',
-                    message: 'Vui lòng nhập email hoặc số điện thoại hợp lệ'
-                };
+        if (isEmail(data.emailOrPhone)) {
+            const resetResult = await sendPasswordResetEmail(data.emailOrPhone);
+            
+            if (!resetResult.success) {
+                setLoading(false);
+                setError(resetResult.error?.message || "Không thể gửi email đặt lại mật khẩu");
+                setValidated({ emailValid: false });
+                return;
+            }
+            
+            setSuccess(true);
+            setTimeout(() => {
+                router.push("/(auth)/login");
+            }, 3000);
+        } else if (isPhone(data.emailOrPhone)) {
+            const phoneAuthResult = await startPhoneAuth(data.emailOrPhone);
+            
+            if (!phoneAuthResult.success) {
+                setLoading(false);
+                setError(phoneAuthResult.error?.message || "Không thể gửi mã xác thực đến số điện thoại này");
+                setValidated({ emailValid: false });
+                return;
             }
 
-            setLoading(false);
-        } catch (error: any) {
-            setLoading(false);
-            const errorMessage = handleAuthError(error);
-            setError(errorMessage);
-            setValidated({
-                emailValid: false
+            router.push({
+                pathname: "/(auth)/verify-code",
+                params: { 
+                    phone: data.emailOrPhone,
+                    verificationId: phoneAuthResult.data?.verificationId,
+                    resetPassword: "true"
+                }
             });
+        } else {
+            setLoading(false);
+            setError('Vui lòng nhập email hoặc số điện thoại hợp lệ');
+            setValidated({ emailValid: false });
+            return;
         }
+
+        setLoading(false);
     };
 
     return (
         <VStack className="max-w-[440px] w-full" space="md">
             <VStack className="md:items-center" space="md">
-                <VStack space="sm" className="my-4">
+                <VStack space="sm" className="mt-4">
                     <Heading className="md:text-center" size="2xl">
                         Quên mật khẩu
                     </Heading>
@@ -110,20 +113,13 @@ const ForgotPasswordForm = () => {
                 </VStack>
             </VStack>
 
-            {error && (
-                <FormControlError className="justify-center mb-2">
-                    <FormControlErrorIcon as={AlertTriangle} />
-                    <FormControlErrorText>{error}</FormControlErrorText>
-                </FormControlError>
-            )}
-
             {success && (
-                <Text className="text-green-600 text-center mb-2">
+                <Text className="text-green-600 text-center">
                     Email đặt lại mật khẩu đã được gửi. Vui lòng kiểm tra hộp thư của bạn.
                 </Text>
             )}
 
-            <VStack className="w-full">
+            <VStack className="w-full mt-2">
                 <VStack space="xl" className="w-full">
                     <FormControl
                         isInvalid={!!errors.emailOrPhone || !validated.emailValid}
@@ -149,7 +145,7 @@ const ForgotPasswordForm = () => {
                         <FormControlError>
                             <FormControlErrorIcon as={AlertTriangle} />
                             <FormControlErrorText>
-                                {errors.emailOrPhone?.message || "Email hoặc số điện thoại không hợp lệ"}
+                                {errors.emailOrPhone?.message || error || "Email hoặc số điện thoại không hợp lệ"}
                             </FormControlErrorText>
                         </FormControlError>
                     </FormControl>

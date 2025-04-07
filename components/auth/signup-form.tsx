@@ -8,9 +8,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 
 // Application utils and services
 import { GoogleIcon } from "@/assets/auth/icons/google";
-import { handleAuthError } from '@/lib/error-handling';
-import { signUpWithEmailAndPassword, sendEmailVerification, startPhoneAuth } from "@/lib/firebase-auth";
-import { emailOrPhoneValidator, formatPhoneNumber, isEmail, isPhone, passwordStrengthValidator } from "@/lib/validation";
+import { signUpWithEmailAndPassword, startPhoneAuth } from "@/lib/firebase-auth";
+import { emailOrPhoneValidator, isEmail, isPhone, passwordStrengthValidator } from "@/lib/validation";
 
 // UI Components
 import { Button, ButtonText, ButtonIcon } from "../ui/button";
@@ -71,39 +70,48 @@ const SignupForm = () => {
     };
 
     const onSubmit = async (data: SignupFormValues) => {
-        try {
-            setLoading(true);
-            setError(null);
+        setLoading(true);
+        setError(null);
 
-            if (isEmail(data.emailOrPhone)) {
-                await signUpWithEmailAndPassword(
-                    data.emailOrPhone,
-                    data.password,
-                    data.name
-                );
-                
-                console.log("Email signup successful");
-
-            } else if (isPhone(data.emailOrPhone)) {
-                const phoneNumber = formatPhoneNumber(data.emailOrPhone);
-                const confirmation = await startPhoneAuth(phoneNumber);
-
-                router.push({
-                    pathname: "/(auth)/verify-code",
-                    params: {
-                        phone: data.emailOrPhone,
-                        verificationId: confirmation.verificationId
-                    }
-                });
+        if (isEmail(data.emailOrPhone)) {
+            const signupResult = await signUpWithEmailAndPassword(
+                data.emailOrPhone,
+                data.password,
+                data.name
+            );
+            
+            if (!signupResult.success) {
+                setLoading(false);
+                setError(signupResult.error?.message || "Đăng ký không thành công");
+                return;
+            }
+            
+            console.log("Email signup successful");
+            // Navigate to appropriate screen after signup
+            router.push("/(auth)/login");
+        } else if (isPhone(data.emailOrPhone)) {
+            const phoneAuthResult = await startPhoneAuth(data.emailOrPhone);
+            
+            if (!phoneAuthResult.success) {
+                setLoading(false);
+                setError(phoneAuthResult.error?.message || "Không thể gửi mã xác thực đến số điện thoại này");
+                return;
             }
 
+            router.push({
+                pathname: "/(auth)/verify-code",
+                params: {
+                    phone: data.emailOrPhone,
+                    verificationId: phoneAuthResult.data?.verificationId
+                }
+            });
+        } else {
             setLoading(false);
-        } catch (error: any) {
-            setLoading(false);
-            const errorMessage = handleAuthError(error);
-            setError(errorMessage);
-            console.error("Signup failed", error);
+            setError("Email hoặc số điện thoại không hợp lệ.");
+            return;
         }
+
+        setLoading(false);
     };
 
     return (

@@ -7,7 +7,6 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 // Application utils and services
-import { handleAuthError } from '@/lib/error-handling';
 import { sendEmailVerification, verifyOTP, startPhoneAuth } from "@/lib/firebase-auth";
 import { getPrettyPhoneNumber } from "@/lib/validation";
 
@@ -61,58 +60,72 @@ const VerifyCodeForm = () => {
     }, [pinValue, setValue]);
 
     const handleResendCode = async () => {
-        try {
-            setLoading(true);
-            setError(null);
+        setLoading(true);
+        setError(null);
+        
+        if (params.phone) {
+            const phoneAuthResult = await startPhoneAuth(params.phone);
             
-            if (params.phone) {
-                await startPhoneAuth(params.phone);
-            } else if (params.email) {
-                await sendEmailVerification();
+            if (!phoneAuthResult.success) {
+                setLoading(false);
+                setError(phoneAuthResult.error?.message || "Không thể gửi mã xác thực đến số điện thoại này");
+                return Promise.reject(phoneAuthResult.error);
             }
+        } else if (params.email) {
+            const verifyResult = await sendEmailVerification();
             
+            if (!verifyResult.success) {
+                setLoading(false);
+                setError(verifyResult.error?.message || "Không thể gửi email xác thực");
+                return Promise.reject(verifyResult.error);
+            }
+        } else {
             setLoading(false);
-            setPinValue("");
-            setValue("otp", "");
-            
-            return Promise.resolve();
-        } catch (error: any) {
-            setLoading(false);
-            const errorMessage = handleAuthError(error);
-            setError(errorMessage);
-            return Promise.reject(error);
+            setError("Không tìm thấy thông tin liên hệ để gửi mã xác thực");
+            return Promise.reject(new Error("Missing contact information"));
         }
+        
+        setLoading(false);
+        setPinValue("");
+        setValue("otp", "");
+        
+        return Promise.resolve();
     };
 
     const onSubmit = async (data: VerifyCodeFormValues) => {
-        try {
-            setLoading(true);
-            setError(null);
+        setLoading(true);
+        setError(null);
+        
+        if (params.verificationId && params.phone) {
+            const verifyResult = await verifyOTP(params.verificationId, data.otp);
             
-            if (params.verificationId && params.phone) {
-                const result = await verifyOTP(params.verificationId, data.otp);
-                
-                if (params.resetPassword === "true") {
-                    router.replace({
-                        pathname: "/(auth)/reset-password",
-                        params: { 
-                            phoneNumber: params.phone,
-                            uid: result.user.uid 
-                        }
-                    });
-                } else if (params.isLogin === "true") {
-                    router.replace("/(main)/home");
-                }
-            } else {
-                throw new Error("Không tìm thấy thông tin xác thực");
+            if (!verifyResult.success) {
+                setLoading(false);
+                setError(verifyResult.error?.message || "Mã xác thực không đúng");
+                return;
             }
             
+            if (params.resetPassword === "true") {
+                router.replace({
+                    pathname: "/(auth)/reset-password",
+                    params: { 
+                        phoneNumber: params.phone,
+                        uid: verifyResult.data?.user.uid 
+                    }
+                });
+            } else if (params.isLogin === "true") {
+                router.replace("/(main)/home");
+            } else {
+                // Default is signup flow
+                router.replace("/(auth)/login");
+            }
+        } else {
             setLoading(false);
-        } catch (error: any) {
-            setLoading(false);
-            const errorMessage = handleAuthError(error);
-            setError(errorMessage);
+            setError("Không tìm thấy thông tin xác thực");
+            return;
         }
+        
+        setLoading(false);
     };
 
     return (

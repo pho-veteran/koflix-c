@@ -4,9 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangle } from "lucide-react-native";
 import { GoogleIcon } from "@/assets/auth/icons/google";
 import { useState } from "react";
-import { handleAuthError } from '@/lib/error-handling';
 import { signInWithEmailAndPassword, startPhoneAuth } from "@/lib/firebase-auth";
-import { emailOrPhoneValidator, formatPhoneNumber, isPhone } from "@/lib/validation";
+import { emailOrPhoneValidator, isPhone } from "@/lib/validation";
 
 import { VStack } from "../ui/vstack";
 import { HStack } from "../ui/hstack";
@@ -46,56 +45,61 @@ const LoginForm = () => {
     });
 
     const onSubmit = async (data: LoginFormValues) => {
-        try {
-            setLoading(true);
-            setError(null);
-            setValidated({
-                emailValid: true,
-                passwordValid: true
-            });
+        setLoading(true);
+        setError(null);
+        setValidated({
+            emailValid: true,
+            passwordValid: true
+        });
+        
+        if (isPhone(data.emailOrPhone)) {
+            // Phone login flow - request OTP
+            const phoneAuthResult = await startPhoneAuth(data.emailOrPhone);
             
-            if (isPhone(data.emailOrPhone)) {
-                // Phone login flow - request OTP
-                const formattedPhone = formatPhoneNumber(data.emailOrPhone);
-                const confirmation = await startPhoneAuth(formattedPhone);
-                
-                // Navigate to OTP verification screen
-                router.push({
-                    pathname: "/(auth)/verify-code",
-                    params: { 
-                        phone: data.emailOrPhone,
-                        verificationId: confirmation.verificationId,
-                        isLogin: "true" // Mark this as a login flow
-                    }
-                });
-            } else {
-                // Email login flow
-                await signInWithEmailAndPassword(data.emailOrPhone, data.password);
-                
-                // Navigate to home after successful login
-                router.push("/(main)/home");
-            }
-            
-            setLoading(false);
-        } catch (error: any) {
-            setLoading(false);
-            const errorMessage = handleAuthError(error);
-            setError(errorMessage);
-            
-            // Handle specific error cases
-            if (error.code === 'auth/user-not-found' || 
-                error.code === 'auth/invalid-email' || 
-                error.code === 'auth/invalid-phone-number' ||
-                error.code === 'auth/invalid-credential') {
+            if (!phoneAuthResult.success) {
+                setLoading(false);
+                setError(phoneAuthResult.error?.message || "Không thể gửi mã xác thực tới số điện thoại này.");
                 setValidated(prev => ({ ...prev, emailValid: false }));
-            } 
-            else if (error.code === 'auth/wrong-password') {
-                setValidated(prev => ({ ...prev, passwordValid: false }));
+                return;
             }
-            else {
-                setValidated({ emailValid: false, passwordValid: false });
+            
+            // Navigate to OTP verification screen
+            router.push({
+                pathname: "/(auth)/verify-code",
+                params: { 
+                    phone: data.emailOrPhone,
+                    verificationId: phoneAuthResult.data?.verificationId,
+                    isLogin: "true" // Mark this as a login flow
+                }
+            });
+        } else {
+            // Email login flow
+            const loginResult = await signInWithEmailAndPassword(data.emailOrPhone, data.password);
+            
+            if (!loginResult.success) {
+                setLoading(false);
+                setError(loginResult.error?.message || "Đăng nhập không thành công");
+                
+                // Set which fields are invalid based on error code
+                if (loginResult.error?.code === 'auth/user-not-found' || 
+                    loginResult.error?.code === 'auth/invalid-email' || 
+                    loginResult.error?.code === 'auth/invalid-credential') {
+                    setValidated(prev => ({ ...prev, emailValid: false }));
+                } 
+                else if (loginResult.error?.code === 'auth/wrong-password') {
+                    setValidated(prev => ({ ...prev, passwordValid: false }));
+                }
+                else {
+                    setValidated({ emailValid: false, passwordValid: false });
+                }
+                return;
             }
+            
+            // Navigate to home after successful login
+            router.push("/(main)/home");
         }
+        
+        setLoading(false);
     };
 
     return (

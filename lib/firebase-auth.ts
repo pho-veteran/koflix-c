@@ -1,37 +1,60 @@
-import auth from "@react-native-firebase/auth";
+import auth, { FirebaseAuthTypes } from "@react-native-firebase/auth";
 import { formatPhoneNumber, isEmail, isPhone } from "./validation";
+import { getFirebaseErrorMessage } from "./error-handling";
 
-// Add proper type for user
-export type FirebaseUser = ReturnType<typeof auth>["currentUser"];
+// Proper type for user
+export type FirebaseUser = FirebaseAuthTypes.User | null;
 
-// Auth state listener
-export const onAuthStateChanged = (callback: (user: any) => void) => {
-    return auth().onAuthStateChanged(callback);
+// Common error and result response format
+export interface AuthError {
+  code: string;
+  message: string;
+}
+
+export interface AuthResult<T> {
+  success: boolean;
+  data?: T;
+  error?: AuthError;
+}
+
+// Auth state listener with better typing
+export const onAuthStateChanged = (
+  callback: (user: FirebaseUser) => void
+) => {
+  return auth().onAuthStateChanged(callback);
 };
 
-// Sign up with email and password (renamed for consistency)
+// Sign up with email and password
 export const signUpWithEmailAndPassword = async (
-    email: string,
-    password: string,
-    displayName?: string
-) => {
-    try {
-        const userCredential = await auth().createUserWithEmailAndPassword(
-            email,
-            password
-        );
+  email: string,
+  password: string,
+  displayName?: string
+): Promise<AuthResult<FirebaseAuthTypes.User>> => {
+  try {
+    const userCredential = await auth().createUserWithEmailAndPassword(
+      email,
+      password
+    );
 
-        // Update profile if display name is provided
-        if (displayName && userCredential.user) {
-            await userCredential.user.updateProfile({
-                displayName,
-            });
-        }
-
-        return userCredential.user;
-    } catch (error: any) {
-        throw error;
+    // Update profile if display name is provided
+    if (displayName && userCredential.user) {
+      await userCredential.user.updateProfile({
+        displayName,
+      });
     }
+
+    return { success: true, data: userCredential.user };
+  } catch (error: any) {
+    // Format error for consistency
+    console.error("Email signup error:", error.code, error.message);
+    return {
+      success: false,
+      error: {
+        code: error.code || "auth/unknown-error",
+        message: getFirebaseErrorMessage(error)
+      }
+    };
+  }
 };
 
 // Enhanced sign up function that handles both email and phone
@@ -39,7 +62,7 @@ export const signUpUser = async (
     emailOrPhone: string,
     password: string,
     displayName?: string
-) => {
+): Promise<AuthResult<FirebaseAuthTypes.User>> => {
     try {
         let userCredential;
 
@@ -51,9 +74,13 @@ export const signUpUser = async (
             );
         } else {
             // This should be handled differently - phone signup requires a verification code flow
-            throw new Error(
-                "Đăng ký với số điện thoại cần thiết lập xác thực OTP"
-            );
+            return {
+                success: false,
+                error: {
+                    code: "auth/phone-requires-verification",
+                    message: "Đăng ký với số điện thoại cần thiết lập xác thực OTP"
+                }
+            };
         }
 
         // Update profile if display name is provided
@@ -63,87 +90,128 @@ export const signUpUser = async (
             });
         }
 
-        return userCredential.user;
+        return { success: true, data: userCredential.user };
     } catch (error: any) {
-        throw error;
+        return { 
+            success: false, 
+            error: { 
+                code: error.code || "auth/unknown-error", 
+                message: getFirebaseErrorMessage(error)
+            } 
+        };
     }
 };
 
-// Sửa hàm signInWithEmailAndPassword để xử lý cả email và số điện thoại
-
+// Sign in with email and password
 export const signInWithEmailAndPassword = async (
-    emailOrPhone: string,
-    password: string
-) => {
-    try {
-        // Không nên log thông tin đăng nhập, nhất là mật khẩu!
-        // console.log("Logging in with email:", email, password); <- XÓA DÒNG NÀY
-
-        if (isEmail(emailOrPhone)) {
-            // Đăng nhập bằng email
-            const userCredential = await auth().signInWithEmailAndPassword(
-                emailOrPhone,
-                password
-            );
-            return userCredential.user;
-        } else if (isPhone(emailOrPhone)) {
-            // Đối với số điện thoại, Firebase yêu cầu luồng xác thực OTP
-            throw {
-                code: "auth/operation-not-allowed",
-                message:
-                    'Để đăng nhập bằng số điện thoại, bạn cần xác thực qua OTP. Vui lòng sử dụng nút "Quên mật khẩu".',
-            };
-        } else {
-            throw {
-                code: "auth/invalid-credential",
-                message: "Email hoặc số điện thoại không hợp lệ.",
-            };
+  emailOrPhone: string,
+  password: string
+): Promise<AuthResult<FirebaseAuthTypes.User>> => {
+  try {
+    if (isEmail(emailOrPhone)) {
+      // Đăng nhập bằng email
+      const userCredential = await auth().signInWithEmailAndPassword(
+        emailOrPhone,
+        password
+      );
+      return { success: true, data: userCredential.user };
+    } else if (isPhone(emailOrPhone)) {
+      // Đối với số điện thoại, Firebase yêu cầu luồng xác thực OTP
+      return {
+        success: false,
+        error: {
+          code: "auth/phone-auth-required",
+          message: 'Để đăng nhập bằng số điện thoại, bạn cần xác thực qua OTP. Vui lòng sử dụng nút "Quên mật khẩu".',
         }
-    } catch (error: any) {
-        console.error("Login error:", error.code, error.message);
-        throw error;
+      };
+    } else {
+      return {
+        success: false,
+        error: {
+          code: "auth/invalid-credential",
+          message: "Email hoặc số điện thoại không hợp lệ.",
+        }
+      };
     }
+  } catch (error: any) {
+    console.error("Login error:", error.code, error.message);
+    return { 
+      success: false, 
+      error: { 
+        code: error.code || "auth/unknown-error", 
+        message: getFirebaseErrorMessage(error)
+      } 
+    };
+  }
 };
 
 // Sign out
-export const signOut = async () => {
+export const signOut = async (): Promise<AuthResult<void>> => {
     try {
         await auth().signOut();
+        return { success: true };
     } catch (error: any) {
-        throw error;
+        return { 
+            success: false, 
+            error: { 
+                code: error.code || "auth/sign-out-error", 
+                message: getFirebaseErrorMessage(error)
+            } 
+        };
     }
 };
 
-// Sửa hàm sendPasswordResetEmail để chỉ chấp nhận email
-
-export const sendPasswordResetEmail = async (email: string) => {
-    try {
-        if (!isEmail(email)) {
-            throw {
-                code: "auth/invalid-email",
-                message:
-                    "Vui lòng nhập một địa chỉ email hợp lệ để đặt lại mật khẩu.",
-            };
+// Send password reset email
+export const sendPasswordResetEmail = async (email: string): Promise<AuthResult<void>> => {
+  try {
+    if (!isEmail(email)) {
+      return {
+        success: false,
+        error: {
+          code: "auth/invalid-email",
+          message: "Vui lòng nhập một địa chỉ email hợp lệ để đặt lại mật khẩu.",
         }
-
-        await auth().sendPasswordResetEmail(email);
-    } catch (error: any) {
-        console.error("Reset password error:", error.code, error.message);
-        throw error;
+      };
     }
+
+    await auth().sendPasswordResetEmail(email);
+    return { success: true };
+  } catch (error: any) {
+    console.error("Reset password error:", error.code, error.message);
+    return { 
+      success: false, 
+      error: { 
+        code: error.code || "auth/unknown-error", 
+        message: getFirebaseErrorMessage(error)
+      } 
+    };
+  }
 };
 
 // Send email verification
-export const sendEmailVerification = async () => {
+export const sendEmailVerification = async (): Promise<AuthResult<void>> => {
     try {
         const currentUser = auth().currentUser;
         if (currentUser) {
             await currentUser.sendEmailVerification();
+            return { success: true };
         } else {
-            throw new Error("Không có người dùng nào đang đăng nhập");
+            return { 
+                success: false, 
+                error: { 
+                    code: "auth/no-current-user", 
+                    message: "Không có người dùng nào đang đăng nhập" 
+                } 
+            };
         }
     } catch (error: any) {
-        throw error;
+        return { 
+            success: false, 
+            error: { 
+                code: error.code || "auth/verification-error", 
+                message: getFirebaseErrorMessage(error)
+            } 
+        };
     }
 };
 
@@ -153,13 +221,16 @@ export const getCurrentUser = () => {
 };
 
 // Cải thiện xác thực OTP
-export const verifyOTP = async (verificationId: string, code: string) => {
+export const verifyOTP = async (verificationId: string, code: string): Promise<AuthResult<FirebaseAuthTypes.UserCredential>> => {
     try {
         // Kiểm tra mã OTP
         if (!code || code.length !== 6 || !/^\d+$/.test(code)) {
-            throw {
-                code: "auth/invalid-verification-code",
-                message: "Mã xác thực phải gồm 6 chữ số.",
+            return {
+                success: false,
+                error: {
+                    code: "auth/invalid-verification-code",
+                    message: "Mã xác thực phải gồm 6 chữ số.",
+                }
             };
         }
 
@@ -168,25 +239,17 @@ export const verifyOTP = async (verificationId: string, code: string) => {
             verificationId,
             code
         );
-        return await auth().signInWithCredential(credential);
+        const result = await auth().signInWithCredential(credential);
+        return { success: true, data: result };
     } catch (error: any) {
         console.error("Lỗi xác thực OTP:", error.code, error.message);
-
-        // Xử lý lỗi phù hợp
-        if (error.code === "auth/invalid-verification-code") {
-            throw {
-                code: error.code,
-                message:
-                    "Mã xác thực không đúng. Vui lòng kiểm tra và thử lại.",
-            };
-        } else if (error.code === "auth/code-expired") {
-            throw {
-                code: error.code,
-                message: "Mã xác thực đã hết hạn. Vui lòng yêu cầu mã mới.",
-            };
-        }
-
-        throw error;
+        return { 
+            success: false, 
+            error: { 
+                code: error.code || "auth/verification-error", 
+                message: getFirebaseErrorMessage(error)
+            } 
+        };
     }
 };
 
@@ -195,16 +258,17 @@ export const isUserLoggedIn = () => {
     return !!auth().currentUser;
 };
 
-// Hàm startPhoneAuth đã được cập nhật, chỉ cần kiểm tra
-
-export const startPhoneAuth = async (phoneNumber: string) => {
+// Phone authentication
+export const startPhoneAuth = async (phoneNumber: string): Promise<AuthResult<FirebaseAuthTypes.ConfirmationResult>> => {
     try {
         // Kiểm tra tính hợp lệ của số điện thoại
         if (!isPhone(phoneNumber)) {
-            throw {
-                code: "auth/invalid-phone-number",
-                message:
-                    "Số điện thoại không đúng định dạng. Vui lòng kiểm tra lại.",
+            return {
+                success: false,
+                error: {
+                    code: "auth/invalid-phone-number",
+                    message: "Số điện thoại không đúng định dạng. Vui lòng kiểm tra lại.",
+                }
             };
         }
 
@@ -212,48 +276,47 @@ export const startPhoneAuth = async (phoneNumber: string) => {
         const formattedPhone = formatPhoneNumber(phoneNumber);
 
         // Log để debug - có thể xóa trong sản phẩm cuối cùng
-        console.log(
-            `Đang xác thực số điện thoại: ${phoneNumber} -> ${formattedPhone}`
-        );
+        console.log(`Đang xác thực số điện thoại: ${phoneNumber} -> ${formattedPhone}`);
 
         // Gọi API Firebase để gửi mã xác thực
         const confirmation = await auth().signInWithPhoneNumber(formattedPhone);
-        return confirmation;
+        return { success: true, data: confirmation };
     } catch (error: any) {
         console.error("Lỗi xác thực số điện thoại:", error.code, error.message);
-
-        // Xử lý các lỗi phổ biến liên quan đến số điện thoại
-        if (error.code === "auth/invalid-phone-number") {
-            throw {
-                code: error.code,
-                message: "Số điện thoại không đúng định dạng quốc tế.",
-            };
-        } else if (
-            error.code === "auth/quota-exceeded" ||
-            error.code === "auth/too-many-requests"
-        ) {
-            throw {
-                code: error.code,
-                message: "Đã vượt quá giới hạn yêu cầu. Vui lòng thử lại sau.",
-            };
-        }
-
-        throw error;
+        return {
+            success: false,
+            error: { 
+                code: error.code || "auth/unknown-error", 
+                message: getFirebaseErrorMessage(error)
+            }
+        };
     }
 };
 
-// Thêm hàm cập nhật mật khẩu
-
-export const updateUserPassword = async (newPassword: string) => {
+// Update user password
+export const updateUserPassword = async (newPassword: string): Promise<AuthResult<void>> => {
     try {
         const currentUser = auth().currentUser;
         if (!currentUser) {
-            throw new Error("Không có người dùng nào đang đăng nhập");
+            return {
+                success: false,
+                error: {
+                    code: "auth/no-current-user",
+                    message: "Không có người dùng nào đang đăng nhập"
+                }
+            };
         }
 
         await currentUser.updatePassword(newPassword);
+        return { success: true };
     } catch (error: any) {
         console.error("Update password error:", error.code, error.message);
-        throw error;
+        return {
+            success: false,
+            error: { 
+                code: error.code || "auth/unknown-error", 
+                message: getFirebaseErrorMessage(error)
+            }
+        };
     }
 };

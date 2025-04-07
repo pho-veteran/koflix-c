@@ -8,7 +8,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 
 // Application utils and services
 import { updateUserPassword } from "@/lib/firebase-auth";
-import { handleAuthError } from '@/lib/error-handling';
 import { passwordStrengthValidator } from "@/lib/validation";
 
 // UI Components
@@ -25,6 +24,7 @@ import { Heading } from "../ui/heading";
 import { Input, InputField, InputIcon, InputSlot } from "../ui/input";
 import { Text } from "../ui/text";
 import { VStack } from "../ui/vstack";
+import { Box } from "../ui/box";
 
 const formSchema = z.object({
     password: passwordStrengthValidator,
@@ -70,23 +70,23 @@ const ResetPasswordForm = () => {
     };
 
     const onSubmit = async (data: ResetPasswordFormValues) => {
-        try {
-            setLoading(true);
-            setError(null);
+        setLoading(true);
+        setError(null);
 
-            await updateUserPassword(data.password);
-
-            setSuccess(true);
+        const updateResult = await updateUserPassword(data.password);
+        
+        if (!updateResult.success) {
             setLoading(false);
-
-            setTimeout(() => {
-                router.replace("/(auth)/login");
-            }, 3000);
-        } catch (error: any) {
-            setLoading(false);
-            const errorMessage = handleAuthError(error);
-            setError(errorMessage);
+            setError(updateResult.error?.message || "Không thể cập nhật mật khẩu");
+            return;
         }
+
+        setSuccess(true);
+        setLoading(false);
+
+        setTimeout(() => {
+            router.replace("/(auth)/login");
+        }, 3000);
     };
 
     return (
@@ -112,11 +112,11 @@ const ResetPasswordForm = () => {
             )}
 
             {success && (
-                <FormControl className="mb-2">
+                <Box className="mb-2">
                     <Text className="text-green-600 text-center">
                         Mật khẩu đã được cập nhật thành công! Đang chuyển hướng về trang chủ...
                     </Text>
-                </FormControl>
+                </Box>
             )}
 
             <VStack className="w-full">
