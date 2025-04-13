@@ -2,7 +2,6 @@ import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangle } from "lucide-react-native";
-import { GoogleIcon } from "@/assets/auth/icons/google";
 import { useState } from "react";
 import { signInWithEmailAndPassword, startPhoneAuth } from "@/lib/firebase-auth";
 import { emailOrPhoneValidator, isPhone } from "@/lib/validation";
@@ -14,7 +13,7 @@ import { Heading } from "../ui/heading";
 import { Text } from "../ui/text";
 import { FormControl, FormControlError, FormControlErrorIcon, FormControlErrorText, FormControlLabel, FormControlLabelText } from "../ui/form-control";
 import { Input, InputField } from "../ui/input";
-import { Button, ButtonText, ButtonIcon } from "../ui/button";
+import { Button, ButtonText, ButtonSpinner } from "../ui/button";
 
 const formSchema = z.object({
     emailOrPhone: emailOrPhoneValidator,
@@ -26,7 +25,6 @@ type LoginFormValues = z.infer<typeof formSchema>;
 const LoginForm = () => {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const [validated, setValidated] = useState({
         emailValid: true,
         passwordValid: true
@@ -46,7 +44,6 @@ const LoginForm = () => {
 
     const onSubmit = async (data: LoginFormValues) => {
         setLoading(true);
-        setError(null);
         setValidated({
             emailValid: true,
             passwordValid: true
@@ -58,7 +55,6 @@ const LoginForm = () => {
             
             if (!phoneAuthResult.success) {
                 setLoading(false);
-                setError(phoneAuthResult.error?.message || "Không thể gửi mã xác thực tới số điện thoại này.");
                 setValidated(prev => ({ ...prev, emailValid: false }));
                 return;
             }
@@ -78,7 +74,6 @@ const LoginForm = () => {
             
             if (!loginResult.success) {
                 setLoading(false);
-                setError(loginResult.error?.message || "Đăng nhập không thành công");
                 
                 // Set which fields are invalid based on error code
                 if (loginResult.error?.code === 'auth/user-not-found' || 
@@ -94,9 +89,6 @@ const LoginForm = () => {
                 }
                 return;
             }
-            
-            // Navigate to home after successful login
-            router.push("/(main)/home");
         }
         
         setLoading(false);
@@ -189,25 +181,17 @@ const LoginForm = () => {
 
                 <VStack className="w-full my-7" space="lg">
                     <Button
-                        className="w-full"
+                        variant="solid"
+                        size="lg"
+                        isDisabled={loading}
                         onPress={handleSubmit(onSubmit)}
-                        disabled={loading}
+                        className="w-full mt-4 bg-primary-400"
                     >
-                        <ButtonText className="font-medium">
-                            {loading ? "Đang xử lý..." : "Đăng nhập"}
-                        </ButtonText>
-                    </Button>
-                    <Button
-                        variant="outline"
-                        action="secondary"
-                        className="w-full gap-1"
-                        onPress={() => console.log("Google login pressed")}
-                        disabled={true}
-                    >
-                        <ButtonText className="font-medium">
-                            Đăng nhập với Google
-                        </ButtonText>
-                        <ButtonIcon as={GoogleIcon} />
+                        {loading ? (
+                            <ButtonSpinner color="white" />
+                        ) : (
+                            <ButtonText className="text-typography-950">Đăng nhập</ButtonText>
+                        )}
                     </Button>
                 </VStack>
 

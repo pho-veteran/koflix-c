@@ -38,3 +38,4 @@ yarn-error.*
 app-example
 
 /lib/credentials/google-services.json
+.env

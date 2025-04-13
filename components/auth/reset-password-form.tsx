@@ -2,7 +2,7 @@
 import { AlertTriangle, EyeIcon, EyeOffIcon } from "lucide-react-native";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -11,7 +11,7 @@ import { updateUserPassword } from "@/lib/firebase-auth";
 import { passwordStrengthValidator } from "@/lib/validation";
 
 // UI Components
-import { Button, ButtonText } from "../ui/button";
+import { Button, ButtonText, ButtonSpinner } from "../ui/button";
 import { 
     FormControl, 
     FormControlError, 
@@ -38,21 +38,16 @@ type ResetPasswordFormValues = z.infer<typeof formSchema>;
 
 const ResetPasswordForm = () => {
     const router = useRouter();
-    const params = useLocalSearchParams<{ 
-        phoneNumber?: string,
-        uid?: string 
-    }>();
     
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
 
     const {
         control,
         handleSubmit,
-        formState: { errors },
+        formState: { errors, isSubmitting },
     } = useForm<ResetPasswordFormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -70,22 +65,19 @@ const ResetPasswordForm = () => {
     };
 
     const onSubmit = async (data: ResetPasswordFormValues) => {
-        setLoading(true);
         setError(null);
 
         const updateResult = await updateUserPassword(data.password);
         
         if (!updateResult.success) {
-            setLoading(false);
             setError(updateResult.error?.message || "Không thể cập nhật mật khẩu");
             return;
         }
 
         setSuccess(true);
-        setLoading(false);
 
         setTimeout(() => {
-            router.replace("/(auth)/login");
+            router.replace("/");
         }, 3000);
     };
 
@@ -190,13 +182,17 @@ const ResetPasswordForm = () => {
 
                 <VStack className="w-full my-7" space="lg">
                     <Button
-                        className="w-full"
+                        variant="solid"
+                        size="lg"
+                        isDisabled={isSubmitting}
                         onPress={handleSubmit(onSubmit)}
-                        isDisabled={loading || success}
+                        className="w-full mt-4 bg-primary-400"
                     >
-                        <ButtonText className="font-medium">
-                            {loading ? "Đang xử lý..." : "Cập nhật mật khẩu"}
-                        </ButtonText>
+                        {isSubmitting ? (
+                            <ButtonSpinner color="white" />
+                        ) : (
+                            <ButtonText className="text-typography-950">Đặt lại mật khẩu</ButtonText>
+                        )}
                     </Button>
                 </VStack>
             </VStack>

@@ -11,7 +11,7 @@ import { sendPasswordResetEmail, startPhoneAuth } from "@/lib/firebase-auth";
 import { emailOrPhoneValidator, isEmail, isPhone } from "@/lib/validation";
 
 // UI Components
-import { Button, ButtonText } from "../ui/button";
+import { Button, ButtonText, ButtonSpinner } from "../ui/button";
 import { 
     FormControl, 
     FormControlError, 
@@ -38,14 +38,13 @@ const ForgotPasswordForm = () => {
     const [validated, setValidated] = useState({
         emailValid: true
     });
-    const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
 
     const {
         control,
         handleSubmit,
-        formState: { errors },
+        formState: { errors, isSubmitting },
     } = useForm<ForgotPasswordFormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -54,7 +53,6 @@ const ForgotPasswordForm = () => {
     });
 
     const onSubmit = async (data: ForgotPasswordFormValues) => {
-        setLoading(true);
         setError(null);
         setValidated({ emailValid: true });
 
@@ -62,7 +60,6 @@ const ForgotPasswordForm = () => {
             const resetResult = await sendPasswordResetEmail(data.emailOrPhone);
             
             if (!resetResult.success) {
-                setLoading(false);
                 setError(resetResult.error?.message || "Không thể gửi email đặt lại mật khẩu");
                 setValidated({ emailValid: false });
                 return;
@@ -70,13 +67,12 @@ const ForgotPasswordForm = () => {
             
             setSuccess(true);
             setTimeout(() => {
-                router.push("/(auth)/login");
+                router.back();
             }, 3000);
         } else if (isPhone(data.emailOrPhone)) {
             const phoneAuthResult = await startPhoneAuth(data.emailOrPhone);
             
             if (!phoneAuthResult.success) {
-                setLoading(false);
                 setError(phoneAuthResult.error?.message || "Không thể gửi mã xác thực đến số điện thoại này");
                 setValidated({ emailValid: false });
                 return;
@@ -91,13 +87,10 @@ const ForgotPasswordForm = () => {
                 }
             });
         } else {
-            setLoading(false);
             setError('Vui lòng nhập email hoặc số điện thoại hợp lệ');
             setValidated({ emailValid: false });
             return;
         }
-
-        setLoading(false);
     };
 
     return (
@@ -153,13 +146,17 @@ const ForgotPasswordForm = () => {
 
                 <VStack className="w-full my-7" space="lg">
                     <Button
-                        className="w-full"
+                        variant="solid"
+                        size="lg"
+                        isDisabled={isSubmitting}
                         onPress={handleSubmit(onSubmit)}
-                        isDisabled={loading}
+                        className="w-full mt-4 bg-primary-400" // Updated color
                     >
-                        <ButtonText className="font-medium">
-                            {loading ? "Đang xử lý..." : "Đặt lại mật khẩu"}
-                        </ButtonText>
+                        {isSubmitting ? (
+                            <ButtonSpinner color="white" />
+                        ) : (
+                            <ButtonText className="text-typography-950">Tiếp tục</ButtonText>
+                        )}
                     </Button>
 
                     <HStack className="self-center" space="sm">

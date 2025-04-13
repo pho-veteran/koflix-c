@@ -1,18 +1,35 @@
-import { useAuth } from "@/lib/auth-context";
-import { Stack } from "expo-router";
-import { View, ActivityIndicator } from "react-native";
+import { useAuth } from "@/providers/auth-context";
+import { Stack, useRouter, usePathname } from "expo-router";
+import { useEffect } from "react";
+import { useLoading } from "@/hooks/use-loading";
 
 export default function AuthLayout() {
-    const { isLoading } = useAuth();
+    const { user, isLoading: authLoading } = useAuth();
+    const router = useRouter();
+    const pathname = usePathname();
+    const { setIsLoading, setMessage } = useLoading();
 
-    // Show loading indicator while checking auth state
-    if (isLoading) {
-        return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#121212' }}>
-                <ActivityIndicator size="large" color="#E50914" />
-            </View>
-        );
-    }
+    // Handle loading state
+    useEffect(() => {
+        if (authLoading) {
+            setIsLoading(true);
+            setMessage("Đang kiểm tra trạng thái xác thực...");
+        } else {
+            setIsLoading(false);
+        }
+    }, [authLoading]);
+
+    // Handle authentication redirects
+    useEffect(() => {
+        // Wait until auth is initialized
+        if (!authLoading && user) {
+            // If user is already signed in, redirect to main app
+            // Exception for reset-password route that might be needed for signed-in users
+            if (!pathname.includes("reset-password")) {
+                router.replace("/(main)/home");
+            }
+        }
+    }, [user, authLoading, router, pathname]);
 
     return (
         <Stack
@@ -24,8 +41,17 @@ export default function AuthLayout() {
                 headerTitleStyle: {
                     fontWeight: "bold",
                 },
+                headerShown: false,
             }}
         >
+            {/* Add the index screen */}
+            <Stack.Screen
+                name="index"
+                options={{
+                    title: "Koflix",
+                    headerShown: false,
+                }}
+            />
             <Stack.Screen
                 name="login"
                 options={{

@@ -1,20 +1,32 @@
-import { useAuth } from "@/lib/auth-context";
-import { Stack } from "expo-router";
-import { StatusBar } from "expo-status-bar";
+import { useAuth } from "@/providers/auth-context";
+import { Stack, useRouter } from "expo-router";
 import { View, ActivityIndicator } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useEffect } from "react";
 
 export default function MainLayout() {
-    const insets = useSafeAreaInsets();
-    const { isLoading } = useAuth();
+    const { user, isLoading: authLoading } = useAuth();
+    const router = useRouter();
+
+    // Handle authentication redirects
+    useEffect(() => {
+        // Wait until auth is initialized
+        if (!authLoading && !user) {
+            // If user is not signed in, redirect to auth
+            router.replace("/(auth)");
+        }
+    }, [user, authLoading, router]);
 
     // Show loading indicator while checking auth state
-    if (isLoading) {
+    if (authLoading) {
         return (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#121212' }}>
                 <ActivityIndicator size="large" color="#E50914" />
             </View>
         );
+    }
+
+    if (!user) {
+        return null;
     }
 
     return (

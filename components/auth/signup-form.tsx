@@ -5,14 +5,13 @@ import { useForm, Controller } from "react-hook-form";
 import { Link, useRouter } from "expo-router";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useLoading } from '@/hooks/use-loading';
 
-// Application utils and services
-import { GoogleIcon } from "@/assets/auth/icons/google";
 import { signUpWithEmailAndPassword, startPhoneAuth } from "@/lib/firebase-auth";
 import { emailOrPhoneValidator, isEmail, isPhone, passwordStrengthValidator } from "@/lib/validation";
 
 // UI Components
-import { Button, ButtonText, ButtonIcon } from "../ui/button";
+import { Button, ButtonText, ButtonSpinner } from "../ui/button";
 import { 
     FormControl, 
     FormControlError, 
@@ -26,6 +25,7 @@ import { HStack } from "../ui/hstack";
 import { Input, InputField, InputSlot, InputIcon } from "../ui/input";
 import { Text } from "../ui/text";
 import { VStack } from "../ui/vstack";
+import { createOrUpdateUser } from "@/api/users";
 
 // Form schema
 const formSchema = z.object({
@@ -44,13 +44,13 @@ const SignupForm = () => {
     const router = useRouter();
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const { setIsLoading, setMessage } = useLoading();
 
     const {
         control,
         handleSubmit,
-        formState: { errors },
+        formState: { errors, isSubmitting },
     } = useForm<SignupFormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -70,48 +70,85 @@ const SignupForm = () => {
     };
 
     const onSubmit = async (data: SignupFormValues) => {
-        setLoading(true);
         setError(null);
+        setIsLoading(true); // Start loading
+        setMessage("Đang tạo tài khoản..."); // Set initial loading message
 
-        if (isEmail(data.emailOrPhone)) {
-            const signupResult = await signUpWithEmailAndPassword(
-                data.emailOrPhone,
-                data.password,
-                data.name
-            );
-            
-            if (!signupResult.success) {
-                setLoading(false);
-                setError(signupResult.error?.message || "Đăng ký không thành công");
-                return;
-            }
-            
-            console.log("Email signup successful");
-            // Navigate to appropriate screen after signup
-            router.push("/(auth)/login");
-        } else if (isPhone(data.emailOrPhone)) {
-            const phoneAuthResult = await startPhoneAuth(data.emailOrPhone);
-            
-            if (!phoneAuthResult.success) {
-                setLoading(false);
-                setError(phoneAuthResult.error?.message || "Không thể gửi mã xác thực đến số điện thoại này");
-                return;
-            }
-
-            router.push({
-                pathname: "/(auth)/verify-code",
-                params: {
-                    phone: data.emailOrPhone,
-                    verificationId: phoneAuthResult.data?.verificationId
+        try {
+            if (isEmail(data.emailOrPhone)) {
+                setMessage("Đang đăng ký với email..."); // Update message for email flow
+                const signupResult = await signUpWithEmailAndPassword(
+                    data.emailOrPhone,
+                    data.password,
+                    data.name
+                );
+                
+                if (!signupResult.success) {
+                    setError(signupResult.error?.message || "Đăng ký không thành công");
+                    setIsLoading(false); // Stop loading on error
+                    setMessage(""); // Clear message
+                    return;
                 }
-            });
-        } else {
-            setLoading(false);
-            setError("Email hoặc số điện thoại không hợp lệ.");
-            return;
-        }
+                
+                // After successful signup, create/update user in your backend
+                try {
+                    // Check if signupResult.data exists before accessing its properties
+                    if (!signupResult.data) {
+                        throw new Error("Không nhận được thông tin người dùng sau khi đăng ký");
+                    }
+                    
+                    setMessage("Đang cập nhật thông tin người dùng..."); // Update message for backend call
+                    // Now TypeScript knows signupResult.data is defined
+                    await createOrUpdateUser(signupResult.data.user.uid, {
+                        name: data.name,
+                        emailOrPhone: data.emailOrPhone
+                    });
+                    
+                    // Navigate to home or whatever page comes after signup
+                    setMessage("Đăng ký thành công!"); // Success message
+                    router.replace("/(main)/home");
+                } catch (error: any) {
+                    setError("Đã đăng ký thành công nhưng không thể cập nhật thông tin người dùng.");
+                    setIsLoading(false); // Stop loading on error
+                    setMessage(""); // Clear message
+                }
+            } else if (isPhone(data.emailOrPhone)) {
+                // Store the name for later use with phone verification
+                setMessage("Đang gửi mã xác thực đến điện thoại..."); // Update message for phone flow
+                const phoneAuthResult = await startPhoneAuth(data.emailOrPhone);
+                
+                if (!phoneAuthResult.success) {
+                    setError(phoneAuthResult.error?.message || "Không thể gửi mã xác thực đến số điện thoại này");
+                    setIsLoading(false); // Stop loading on error
+                    setMessage(""); // Clear message
+                    return;
+                }
 
-        setLoading(false);
+                setMessage(""); // Clear message before navigation
+                setIsLoading(false); // Stop loading before navigation
+                router.push({
+                    pathname: "/(auth)/verify-code",
+                    params: {
+                        phone: data.emailOrPhone,
+                        verificationId: phoneAuthResult.data?.verificationId,
+                        userName: data.name // Pass the user's name as a URL parameter
+                    }
+                });
+            } else {
+                setError("Email hoặc số điện thoại không hợp lệ.");
+                setIsLoading(false); // Stop loading on error
+                setMessage(""); // Clear message
+            }
+        } catch (error: any) {
+            console.error("Signup error:", error);
+            setError("Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau.");
+            setIsLoading(false); // Stop loading on unexpected error
+            setMessage(""); // Clear message
+        } finally {
+            // Ensure loading state is cleared if not already done
+            setIsLoading(false);
+            setMessage("");
+        }
     };
 
     return (
@@ -265,27 +302,17 @@ const SignupForm = () => {
 
                 <VStack className="w-full my-7" space="lg">
                     <Button
-                        className="w-full"
+                        variant="solid"
+                        size="lg"
+                        isDisabled={isSubmitting}
                         onPress={handleSubmit(onSubmit)}
-                        disabled={loading}
+                        className="w-full mt-4 bg-primary-400"
                     >
-                        {loading ? (
-                            <ButtonText className="font-medium">Đang xử lý...</ButtonText>
+                        {isSubmitting ? (
+                            <ButtonSpinner color="white" />
                         ) : (
-                            <ButtonText className="font-medium">Đăng ký</ButtonText>
+                            <ButtonText className="text-typography-950">Đăng ký</ButtonText>
                         )}
-                    </Button>
-                    <Button
-                        variant="outline"
-                        action="secondary"
-                        className="w-full gap-1"
-                        onPress={() => console.log("Google login")}
-                        disabled={true}
-                    >
-                        <ButtonText className="font-medium">
-                            Đăng ký với Google
-                        </ButtonText>
-                        <ButtonIcon as={GoogleIcon} />
                     </Button>
                 </VStack>
 

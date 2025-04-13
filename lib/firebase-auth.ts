@@ -24,28 +24,21 @@ export const onAuthStateChanged = (
   return auth().onAuthStateChanged(callback);
 };
 
-// Sign up with email and password
+// Update your signUpWithEmailAndPassword function to include name
 export const signUpWithEmailAndPassword = async (
   email: string,
   password: string,
-  displayName?: string
-): Promise<AuthResult<FirebaseAuthTypes.User>> => {
+  name: string, // Add name parameter
+): Promise<AuthResult<{user: FirebaseAuthTypes.User, name: string}>> => {
   try {
     const userCredential = await auth().createUserWithEmailAndPassword(
       email,
       password
     );
 
-    // Update profile if display name is provided
-    if (displayName && userCredential.user) {
-      await userCredential.user.updateProfile({
-        displayName,
-      });
-    }
-
-    return { success: true, data: userCredential.user };
+    // Return both the user and name
+    return { success: true, data: {user: userCredential.user, name} };
   } catch (error: any) {
-    // Format error for consistency
     console.error("Email signup error:", error.code, error.message);
     return {
       success: false,
@@ -61,7 +54,6 @@ export const signUpWithEmailAndPassword = async (
 export const signUpUser = async (
     emailOrPhone: string,
     password: string,
-    displayName?: string
 ): Promise<AuthResult<FirebaseAuthTypes.User>> => {
     try {
         let userCredential;
@@ -81,13 +73,6 @@ export const signUpUser = async (
                     message: "Đăng ký với số điện thoại cần thiết lập xác thực OTP"
                 }
             };
-        }
-
-        // Update profile if display name is provided
-        if (displayName && userCredential.user) {
-            await userCredential.user.updateProfile({
-                displayName,
-            });
         }
 
         return { success: true, data: userCredential.user };
