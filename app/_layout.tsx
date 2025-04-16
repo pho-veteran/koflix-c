@@ -30,7 +30,6 @@ export default function RootLayout() {
               name="(main)"
               options={{
                 title: 'Main App',
-                // Prevent going back to auth screens
                 headerBackVisible: false,
               }}
             />

@@ -3,7 +3,7 @@
     "name": "Koflix",
     "slug": "koflix-c",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/koflix-logo-bg.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",

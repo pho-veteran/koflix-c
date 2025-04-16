@@ -101,13 +101,13 @@ export default function AuthIndexPage() {
           </Text>
           
           {/* Decorative line instead of text */}
-          <View className="w-20 h-[2px] bg-primary-400 mb-6" />
+          <View className="w-20 h-[2px] bg-white/60 mb-6" />
           
           <Text className="text-typography-700 text-base text-center mb-3 max-w-[340px]">
             Kho phim đa dạng, chất lượng cao và cập nhật liên tục
           </Text>
           
-          <Text className="text-typography-600 text-sm text-center italic mb-8 max-w-[320px]">
+          <Text className="text-typography-600 text-sm text-center mb-8 max-w-[320px]">
             "Biến mỗi khoảnh khắc thành trải nghiệm điện ảnh"
           </Text>
         </View>

@@ -26,7 +26,7 @@ export default function AuthLayout() {
             // If user is already signed in, redirect to main app
             // Exception for reset-password route that might be needed for signed-in users
             if (!pathname.includes("reset-password")) {
-                router.replace("/(main)/home");
+                router.replace("/(main)/(tabs)/home");
             }
         }
     }, [user, authLoading, router, pathname]);

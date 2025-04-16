@@ -7,32 +7,32 @@ import { ActivityIndicator } from "react-native";
 import { Text } from "@/components/ui/text";
 
 export default function Index() {
-    const { user, isLoading: authLoading } = useAuth();
-    const { setIsLoading, setMessage } = useLoading();
-    const [isReady, setIsReady] = useState(false);
-    
-    useEffect(() => {
-        if (authLoading) {
-            setIsLoading(true);
-            setMessage("Kiểm tra trạng thái đăng nhập...");
-        } else {
-            // Short delay before hiding loading indicator to prevent flashing
-            const timer = setTimeout(() => {
-                setIsLoading(false);
-                setIsReady(true);
-            }, 300);
-            
-            return () => clearTimeout(timer);
-        }
-    }, [authLoading, setIsLoading, setMessage]);
+  const { user, isLoading: authLoading } = useAuth();
+  const { setIsLoading, setMessage } = useLoading();
+  const [isReady, setIsReady] = useState(false);
 
-    // Don't attempt to redirect until auth is fully resolved
-    if (!isReady) {
-        return (
-            <View className="flex-1 bg-background-100" />
-        );
+  useEffect(() => {
+    if (authLoading) {
+      setIsLoading(true);
+      setMessage("Kiểm tra trạng thái đăng nhập...");
+    } else {
+      const timer = setTimeout(() => {
+        setIsLoading(false);
+        setIsReady(true);
+      }, 300);
+
+      return () => clearTimeout(timer);
     }
+  }, [authLoading, setIsLoading, setMessage]);
 
-    // Redirect based on authentication status
-    return user ? <Redirect href="/(main)/home" /> : <Redirect href="/(auth)" />;
+  if (!isReady) {
+    return (
+      <View className="flex-1 bg-background-100 justify-center items-center">
+        <ActivityIndicator size="large" color="#E50914" />
+        <Text className="mt-4 text-typography-700">Đang tải ứng dụng...</Text>
+      </View>
+    );
+  }
+
+  return user ? <Redirect href="/(main)/(tabs)/home" /> : <Redirect href="/(auth)" />;
 }
