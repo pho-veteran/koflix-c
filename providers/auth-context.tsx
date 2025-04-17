@@ -2,7 +2,6 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { onAuthStateChanged, FirebaseUser } from '../lib/firebase-auth';
 import { User } from '@/types/user';
 import { getUserDetail, createOrUpdateUser } from '@/api/users';
-import { useLoading } from '@/hooks/use-loading'; // Add this import
 
 // Enhanced auth context with proper types
 export type AuthContextType = {
@@ -35,22 +34,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser>(null);
   const [user, setUser] = useState<User | null>(null);
   const [authInitialized, setAuthInitialized] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);// Add this line
+  const [isLoading, setIsLoading] = useState(true);
 
-
-  // Function to fetch user data from backend
-  const fetchUserData = async (uid: string) => {
+  const fetchUserData = async () => {
     try {
       setIsLoading(true);
 
-      const userData = await getUserDetail(uid);
+      const userData = await getUserDetail();
 
       if (userData) {
         setUser(userData);
         console.log("User data fetched:", userData);
       } else {
-        const newUser = await createOrUpdateUser(uid, {
-          name: 'Koflix User', // Generic fallback name
+        const newUser = await createOrUpdateUser({
+          name: 'Koflix User',
           emailOrPhone: firebaseUser?.email || firebaseUser?.phoneNumber || undefined
         });
         setUser(newUser);
@@ -58,25 +55,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error) {
       console.error('Error fetching user data:', error);
     } finally {
-      setIsLoading(false);    }
-  };
-
-  // Manual refresh function for user data
-  const refreshUserData = async () => {
-    if (firebaseUser?.uid) {
-      setIsLoading(true);
-      await fetchUserData(firebaseUser.uid);
+      setIsLoading(false);
     }
   };
 
-  // Listen for Firebase auth state changes
+  const refreshUserData = async () => {
+    if (firebaseUser) {
+      setIsLoading(true);
+      await fetchUserData();
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged((currentUser) => {
       setFirebaseUser(currentUser);
       setAuthInitialized(true);
 
-      if (currentUser?.uid) {
-        fetchUserData(currentUser.uid);
+      if (currentUser) {
+        fetchUserData();
       } else {
         setUser(null);
         setIsLoading(false);
