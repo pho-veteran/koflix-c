@@ -53,6 +53,15 @@ export default function TabsLayout() {
                 }}
             />
             <Tabs.Screen
+                name="downloaded"
+                options={{
+                    title: "Tải xuống",
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="download" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
                 name="profile"
                 options={{
                     title: "Hồ sơ",

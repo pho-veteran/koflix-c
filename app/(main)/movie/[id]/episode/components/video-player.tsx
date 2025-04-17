@@ -8,6 +8,7 @@ import { HStack } from "@/components/ui/hstack";
 import { NETFLIX_RED } from "@/constants/ui-constants";
 import { EpisodeServer } from "@/types/movie-type";
 import { VStack } from '@/components/ui/vstack';
+import DownloadButton from '@/components/video/download-button';
 
 interface VideoPlayerProps {
   selectedServer: EpisodeServer | null;
@@ -24,6 +25,13 @@ interface VideoPlayerProps {
   setIsVideoLoading: (loading: boolean) => void;
   setVideoError: (error: string) => void;
   onVideoLoaded?: () => void;
+  // Download props
+  movieId?: string;
+  movieName?: string;
+  episodeId?: string;
+  episodeName?: string;
+  posterUrl?: string;
+  thumbUrl?: string;
 }
 
 const VideoPlayer = ({
@@ -40,7 +48,14 @@ const VideoPlayer = ({
   onOpenEpisodeModal,
   setIsVideoLoading,
   setVideoError,
-  onVideoLoaded
+  onVideoLoaded,
+  // Download props
+  movieId,
+  movieName,
+  episodeId,
+  episodeName,
+  posterUrl,
+  thumbUrl
 }: VideoPlayerProps) => {
   const videoRef = useRef<VideoRef>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -217,9 +232,31 @@ const VideoPlayer = ({
               style={[styles.controlBar, styles.bottomBar]}
             >
               <HStack className="justify-between items-center w-full px-4">
-                <Text className="text-typography-800 text-xs">
-                  {selectedServer?.server_name || "Đang phát"}
-                </Text>
+                <HStack space="md" className="items-center">
+                  <Text className="text-typography-800 text-xs">
+                    {selectedServer?.server_name || "Đang phát"}
+                  </Text>
+                  
+                  {/* Download Button */}
+                  {selectedServer?.link_m3u8 && episodeId && (
+                    <DownloadButton
+                      videoId={episodeId}
+                      m3u8Url={selectedServer.link_m3u8}
+                      title={episodeName || selectedServer.filename || "Episode"}
+                      posterUrl={posterUrl}
+                      thumbUrl={thumbUrl}
+                      iconSize={22}
+                      iconColor="#fff"
+                      movieId={movieId}
+                      movieName={movieName}
+                      episodeId={episodeId}
+                      episodeName={episodeName}
+                      episodeServerId={selectedServer.id}
+                      episodeServerFileName={selectedServer.filename}
+                    />
+                  )}
+                </HStack>
+                
                 <TouchableOpacity
                   onPress={onToggleFullscreen}
                   hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}

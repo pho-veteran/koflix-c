@@ -232,7 +232,13 @@ export default function EpisodePlayerScreen() {
         onOpenEpisodeModal={() => setIsEpisodeModalOpen(true)}
         setIsVideoLoading={setIsVideoLoading}
         setVideoError={setVideoError}
-        onVideoLoaded={handleVideoLoaded} // Add this prop
+        onVideoLoaded={handleVideoLoaded}
+        movieId={movie.id}
+        movieName={movie.name}
+        episodeId={currentEpisode.id}
+        episodeName={currentEpisode.name}
+        posterUrl={movie.poster_url}
+        thumbUrl={movie.thumb_url}
       />
 
       {/* Content below video - only visible in portrait */}

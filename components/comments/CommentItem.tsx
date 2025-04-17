@@ -85,13 +85,6 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, currentUserId }) => 
                   {comment.replyCount || 0} phản hồi
                 </Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity className="flex-row items-center py-1">
-                <Ionicons name="heart-outline" size={14} color="#9ca3af" />
-                <Text className="text-xs text-typography-600 ml-1">
-                  Thích
-                </Text>
-              </TouchableOpacity>
             </HStack>
           </VStack>
         </HStack>
