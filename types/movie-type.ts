@@ -16,8 +16,8 @@ export interface EpisodeServer {
     filename: string;
     link_embed: string;
     link_m3u8: string;
-    createdAt: string; // ISO String
-    updatedAt: string; // ISO String
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface Episode {
@@ -35,7 +35,6 @@ export interface Tmdb {
     vote_count: number;
 }
 
-// Added interface for the user interaction data
 export interface UserInteractionData {
     isLiked: boolean;
     isDisliked: boolean;
@@ -47,7 +46,7 @@ export interface MovieDetail {
     name: string;
     slug: string;
     origin_name: string;
-    type: string; // Name of the movie type
+    type: string;
     poster_url: string;
     thumb_url: string;
     sub_docquyen: boolean;
@@ -65,7 +64,7 @@ export interface MovieDetail {
     status: string;
     is_copyright: boolean;
     chieurap: boolean;
-    trailer_url?: string; // Optional based on endpoint logic (can be null)
+    trailer_url?: string;
     episode_total: string;
     notify: string;
     showtimes: string;
@@ -76,17 +75,16 @@ export interface MovieDetail {
     likeCount: number;
     dislikeCount: number;
 
-    category: Category[]; // Array containing the movie's type info
-    country: Country[]; // Array of country objects
+    category: Category[];
+    country: Country[];
     actor: string[];
     director: string[];
-    genres: string[]; // Array of genre names
+    genres: string[];
     episodes: Episode[];
 
-    createdAt: string; // ISO String
-    updatedAt: string; // ISO String
+    createdAt: string;
+    updatedAt: string;
 
-    // Added userInteraction field, which can be null if userId is not provided
     userInteraction: UserInteractionData | null;
 }
 

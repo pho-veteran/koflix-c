@@ -5,9 +5,10 @@ import { VStack } from '@/components/ui/vstack';
 import { Text } from '@/components/ui/text';
 import { Heading } from '@/components/ui/heading';
 import { Ionicons } from '@expo/vector-icons';
-import { UserInteractionData } from '@/types/movie';
-import { postUserInteraction, InteractionType } from '@/api/user-movie';
+import { UserInteractionData } from '@/types/movie-type';
+import { postUserInteraction } from '@/api/user-movie';
 import { useAuth } from '@/providers/auth-context';
+import { InteractionType } from '@/types/user-movie-type';
 
 interface MovieInteractionsProps {
   movieId: string;
@@ -55,7 +56,8 @@ const MovieInteractions: React.FC<MovieInteractionsProps> = ({
       // Toggle off like if already liked
       const interactionType: InteractionType = isLiked ? "DISLIKE" : "LIKE";
       
-      await postUserInteraction(user.id, movieId, interactionType);
+      // Fix: Remove user.id parameter
+      await postUserInteraction(movieId, interactionType);
       
       const newInteraction: UserInteractionData = {
         isLiked: !isLiked,
@@ -84,7 +86,8 @@ const MovieInteractions: React.FC<MovieInteractionsProps> = ({
     try {
       const interactionType: InteractionType = isDisliked ? "LIKE" : "DISLIKE";
       
-      await postUserInteraction(user.id, movieId, interactionType);
+      // Fix: Remove user.id parameter
+      await postUserInteraction(movieId, interactionType);
       
       const newInteraction: UserInteractionData = {
         isLiked: false,
@@ -109,7 +112,8 @@ const MovieInteractions: React.FC<MovieInteractionsProps> = ({
     
     setIsSubmitting(true);
     try {
-      await postUserInteraction(user.id, movieId, "RATE", rating);
+      // Fix: Remove user.id parameter
+      await postUserInteraction(movieId, "RATE", rating);
       
       const newInteraction: UserInteractionData = {
         isLiked: isLiked,

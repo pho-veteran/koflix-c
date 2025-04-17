@@ -8,7 +8,7 @@ import { LOADING } from '@/constants/ui-constants';
 import { AlertDialog, AlertDialogBackdrop, AlertDialogContent, AlertDialogBody } from '@/components/ui/alert-dialog';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { MovieGenre, MovieType } from '@/types/movie';
+import { MovieGenre, MovieType } from '@/types/movie-type';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ITEM_SIZE = (SCREEN_WIDTH * 0.85 - 48) / 3;

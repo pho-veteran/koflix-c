@@ -7,7 +7,7 @@ import { HStack } from '@/components/ui/hstack';
 import { Text } from '@/components/ui/text';
 import { ANIMATION, NETFLIX_RED } from '@/constants/ui-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Tmdb } from '@/types/movie';
+import { Tmdb } from '@/types/movie-type';
 
 interface MovieHeroProps {
   thumbUrl: string;

@@ -2,10 +2,8 @@ import auth, { FirebaseAuthTypes } from "@react-native-firebase/auth";
 import { formatPhoneNumber, isEmail, isPhone } from "./validation";
 import { getFirebaseErrorMessage } from "./error-handling";
 
-// Proper type for user
 export type FirebaseUser = FirebaseAuthTypes.User | null;
 
-// Common error and result response format
 export interface AuthError {
   code: string;
   message: string;
@@ -17,18 +15,16 @@ export interface AuthResult<T> {
   error?: AuthError;
 }
 
-// Auth state listener with better typing
 export const onAuthStateChanged = (
   callback: (user: FirebaseUser) => void
 ) => {
   return auth().onAuthStateChanged(callback);
 };
 
-// Update your signUpWithEmailAndPassword function to include name
 export const signUpWithEmailAndPassword = async (
   email: string,
   password: string,
-  name: string, // Add name parameter
+  name: string,
 ): Promise<AuthResult<{user: FirebaseAuthTypes.User, name: string}>> => {
   try {
     const userCredential = await auth().createUserWithEmailAndPassword(
@@ -36,7 +32,6 @@ export const signUpWithEmailAndPassword = async (
       password
     );
 
-    // Return both the user and name
     return { success: true, data: {user: userCredential.user, name} };
   } catch (error: any) {
     console.error("Email signup error:", error.code, error.message);
@@ -50,7 +45,6 @@ export const signUpWithEmailAndPassword = async (
   }
 };
 
-// Enhanced sign up function that handles both email and phone
 export const signUpUser = async (
     emailOrPhone: string,
     password: string,
@@ -59,13 +53,11 @@ export const signUpUser = async (
         let userCredential;
 
         if (isEmail(emailOrPhone)) {
-            // Email signup
             userCredential = await auth().createUserWithEmailAndPassword(
                 emailOrPhone,
                 password
             );
         } else {
-            // This should be handled differently - phone signup requires a verification code flow
             return {
                 success: false,
                 error: {
@@ -101,7 +93,6 @@ export const signInWithEmailAndPassword = async (
       );
       return { success: true, data: userCredential.user };
     } else if (isPhone(emailOrPhone)) {
-      // Đối với số điện thoại, Firebase yêu cầu luồng xác thực OTP
       return {
         success: false,
         error: {
@@ -208,7 +199,6 @@ export const getCurrentUser = () => {
 // Cải thiện xác thực OTP
 export const verifyOTP = async (verificationId: string, code: string): Promise<AuthResult<FirebaseAuthTypes.UserCredential>> => {
     try {
-        // Kiểm tra mã OTP
         if (!code || code.length !== 6 || !/^\d+$/.test(code)) {
             return {
                 success: false,
@@ -219,7 +209,6 @@ export const verifyOTP = async (verificationId: string, code: string): Promise<A
             };
         }
 
-        // Xác thực mã OTP
         const credential = auth.PhoneAuthProvider.credential(
             verificationId,
             code
@@ -246,7 +235,6 @@ export const isUserLoggedIn = () => {
 // Phone authentication
 export const startPhoneAuth = async (phoneNumber: string): Promise<AuthResult<FirebaseAuthTypes.ConfirmationResult>> => {
     try {
-        // Kiểm tra tính hợp lệ của số điện thoại
         if (!isPhone(phoneNumber)) {
             return {
                 success: false,
@@ -257,13 +245,8 @@ export const startPhoneAuth = async (phoneNumber: string): Promise<AuthResult<Fi
             };
         }
 
-        // Định dạng số điện thoại theo chuẩn E.164
         const formattedPhone = formatPhoneNumber(phoneNumber);
 
-        // Log để debug - có thể xóa trong sản phẩm cuối cùng
-        console.log(`Đang xác thực số điện thoại: ${phoneNumber} -> ${formattedPhone}`);
-
-        // Gọi API Firebase để gửi mã xác thực
         const confirmation = await auth().signInWithPhoneNumber(formattedPhone);
         return { success: true, data: confirmation };
     } catch (error: any) {

@@ -12,7 +12,7 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getMovieDetail } from "@/api/movies";
 import { VStack } from "@/components/ui/vstack";
-import { Episode, MovieDetail, EpisodeServer } from "@/types/movie";
+import { Episode, MovieDetail, EpisodeServer } from "@/types/movie-type";
 import EpisodeSelectorModal from "@/components/modals/episode-selector-modal";
 import { useAuth } from "@/providers/auth-context";
 import { NETFLIX_RED } from "@/constants/ui-constants";
@@ -23,6 +23,7 @@ import VideoPlayer from "./components/video-player";
 import EpisodeTitle from "./components/episode-title";
 import EpisodeNavigation from "./components/episode-navigation";
 import ServerSelector from "./components/server-selector";
+import { CommentList } from "@/components/comments";
 
 export default function EpisodePlayerScreen() {
   const { id, episodeId } = useLocalSearchParams();
@@ -37,7 +38,7 @@ export default function EpisodePlayerScreen() {
   const [isVideoLoading, setIsVideoLoading] = useState(true);
   const [videoError, setVideoError] = useState("");
   const [isPlaying, setIsPlaying] = useState(true);
-  const [showControls, setShowControls] = useState(true);
+  const [showControls, setShowControls] = useState(false);
   const [isEpisodeModalOpen, setIsEpisodeModalOpen] = useState(false);
   const [previousPlayingState, setPreviousPlayingState] = useState(true);
 
@@ -50,6 +51,14 @@ export default function EpisodePlayerScreen() {
       setIsPlaying(true);
     }
   }, [isEpisodeModalOpen]);
+
+  // Add this effect to manage control visibility based on loading state
+  useEffect(() => {
+    // When video starts loading, hide the controls
+    if (isVideoLoading) {
+      setShowControls(false);
+    }
+  }, [isVideoLoading]);
 
   // Load movie and episode data
   useEffect(() => {
@@ -128,6 +137,20 @@ export default function EpisodePlayerScreen() {
   const handleTogglePlay = () => {
     setIsPlaying(!isPlaying);
     setShowControls(true);
+  };
+
+  // Update the video loaded handler in your VideoPlayer component to show controls
+  const handleVideoLoaded = () => {
+    setIsVideoLoading(false);
+    // Show controls briefly when video loads, then hide them after a delay
+    setShowControls(true);
+    
+    // Optional: Auto-hide controls after video loads
+    const timer = setTimeout(() => {
+      setShowControls(false);
+    }, 3000);
+    
+    return () => clearTimeout(timer);
   };
 
   // Select episode handler
@@ -209,6 +232,7 @@ export default function EpisodePlayerScreen() {
         onOpenEpisodeModal={() => setIsEpisodeModalOpen(true)}
         setIsVideoLoading={setIsVideoLoading}
         setVideoError={setVideoError}
+        onVideoLoaded={handleVideoLoaded} // Add this prop
       />
 
       {/* Content below video - only visible in portrait */}
@@ -234,6 +258,14 @@ export default function EpisodePlayerScreen() {
                 selectedServer={selectedServer}
                 onSelectServer={handleServerSelect}
               />
+              
+              {/* Comments Section */}
+              <View className="mt-4">
+                <CommentList 
+                  episodeId={currentEpisode.id} 
+                  movieId={movie.id}
+                />
+              </View>
             </VStack>
           </Animated.View>
         </ScrollViewComponent>

@@ -3,9 +3,8 @@ import { View, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { Text } from "@/components/ui/text";
 import { Heading } from "@/components/ui/heading";
-import { MovieBase } from "@/types/movie";
+import { MovieBase } from "@/types/movie-type";
 import { useRouter } from "expo-router";
-import Animated from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   FEATURED_HEIGHT,
@@ -24,12 +23,14 @@ interface FeaturedMovieCardProps {
   movie: MovieBase;
   index: number;
   style?: any;
+  isLandscape?: boolean;
 }
 
 const FeaturedMovieCard: React.FC<FeaturedMovieCardProps> = ({
   movie,
   index,
-  style
+  style,
+  isLandscape = false
 }) => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
@@ -91,32 +92,37 @@ const FeaturedMovieCard: React.FC<FeaturedMovieCardProps> = ({
           className="absolute h-full w-full"
         />
 
-        {/* Content container */}
-        <View className="px-5 pb-6 pt-10 items-center relative z-10">
-          {/* Badge for top 3 movies */}
-          {index < 3 && (
-            <View
-              className={`px-4 py-1.5 mb-4 shadow-lg ${index === 0
-                ? FEATURED_BADGE_COLORS.TOP_1
-                : index === 1
-                  ? FEATURED_BADGE_COLORS.TOP_2
-                  : FEATURED_BADGE_COLORS.TOP_3
-                }`}
+        {/* Content container - adjusted for landscape */}
+        <View className={`px-5 pb-6 ${isLandscape ? 'pt-5' : 'pt-10'} ${isLandscape ? 'flex-row items-end justify-between' : 'items-center'} relative z-10`}>
+          <View className={`${isLandscape ? 'w-2/3' : 'w-full'} items-${isLandscape ? 'start' : 'center'}`}>
+            {/* Badge for top 3 movies */}
+            {index < 3 && (
+              <View
+                className={`px-4 py-1.5 ${isLandscape ? 'mb-2' : 'mb-4'} shadow-lg ${index === 0
+                  ? FEATURED_BADGE_COLORS.TOP_1
+                  : index === 1
+                    ? FEATURED_BADGE_COLORS.TOP_2
+                    : FEATURED_BADGE_COLORS.TOP_3
+                  }`}
+              >
+                <Text className="text-typography-950 text-xs font-bold">
+                  {index === 0 ? "Phim Hàng Đầu" : `Top ${index + 1}`}
+                </Text>
+              </View>
+            )}
+
+            <Heading 
+              size={isLandscape ? "lg" : "xl"} 
+              className={`${isLandscape ? 'text-left' : 'text-center'} mb-2 text-typography-950`}
             >
-              <Text className="text-typography-950 text-xs font-bold">
-                {index === 0 ? "Phim Hàng Đầu" : `Top ${index + 1}`}
-              </Text>
-            </View>
-          )}
+              {movie.name}
+            </Heading>
+          </View>
 
-          <Heading size="xl" className="text-center mb-2 text-typography-950">
-            {movie.name}
-          </Heading>
-
-          {/* Genre badges */}
+          {/* Genre badges - placed differently in landscape */}
           {movie.genres && movie.genres.length > 0 && (
-            <View className="flex-row flex-wrap justify-center mb-2 gap-2">
-              {movie.genres.slice(0, 3).map((genre, idx) => (
+            <View className={`flex-row flex-wrap ${isLandscape ? 'justify-end w-1/3' : 'justify-center'} ${isLandscape ? 'mb-0' : 'mb-2'} gap-2`}>
+              {movie.genres.slice(0, isLandscape ? 2 : 3).map((genre, idx) => (
                 <View key={idx} className="bg-secondary-300/60 px-3 py-1 rounded-full">
                   <Text className="text-typography-800 text-xs font-medium">
                     {genre}

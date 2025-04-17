@@ -1,5 +1,5 @@
 import axios from "axios";
-import { User } from "@/types/user";
+import { User } from "@/types/user-type";
 import { getIdToken } from "@/lib/firebase-auth";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -10,7 +10,6 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL;
  */
 export async function getUserDetail(): Promise<User | null> {
     try {
-        // Get the Firebase ID token
         const tokenResult = await getIdToken(true);
         
         if (!tokenResult.success || !tokenResult.data) {
@@ -18,7 +17,6 @@ export async function getUserDetail(): Promise<User | null> {
             return null;
         }
         
-        // Send the ID token to the backend
         const response = await axios.post(
             `${API_URL}/api/public/user/get-user`,
             {

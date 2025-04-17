@@ -5,8 +5,9 @@ import { Text } from "@/components/ui/text";
 import { VStack } from "@/components/ui/vstack";
 import { useAuth } from "@/providers/auth-context";
 import { getTrendingMovies, getRecentlyAddedMovies, getRecommendedMovies } from "@/api/recommendations";
-import { MovieBase } from "@/types/movie";
-import MovieSection from "@/components/movies/movie-section";
+import { MovieBase } from "@/types/movie-type";
+import PosterSection from "@/components/movies/PosterSection";
+import ThumbnailSection from "@/components/movies/ThumbnailSection";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Header from "@/components/layout/home-header";
 import FeaturedCarousel from "@/components/movies/featured-carousel";
@@ -155,28 +156,24 @@ export default function HomePage() {
         />
 
         <VStack space="md" className="px-4 mb-6">
-          {/* Recommended For You Section - No animations */}
+          {/* Recommended For You Section - Using PosterSection */}
           {user?.id && recommendedMovies.length > 0 && (
             <View>
-              <MovieSection
+              <PosterSection
                 title="Đề Xuất Cho Bạn"
                 movies={recommendedMovies}
                 emptyText="Đang xây dựng đề xuất cho bạn..."
-                displayMode="poster"
               />
             </View>
           )}
 
-          {/* Recently Added Section - No animations */}
-          <View>
-            <MovieSection
+          {/* Recently Added Section - Using ThumbnailSection */}
+            <ThumbnailSection
               title="Mới Cập Nhật"
               movies={recentMovies}
               emptyText="Không có phim mới cập nhật."
-              displayMode="thumbnail"
-              thumbnailColumns={2}
+              columns={1}
             />
-          </View>
         </VStack>
       </ScrollView>
 

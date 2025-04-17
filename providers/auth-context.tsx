@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { onAuthStateChanged, FirebaseUser } from '../lib/firebase-auth';
-import { User } from '@/types/user';
+import { User } from '@/types/user-type';
 import { getUserDetail, createOrUpdateUser } from '@/api/users';
 
 // Enhanced auth context with proper types

@@ -1,5 +1,5 @@
 import axios from "axios";
-import { MovieBase, MovieDetail, MovieGenre, MovieType } from "@/types/movie";
+import { MovieBase, MovieDetail, MovieGenre, MovieType } from "@/types/movie-type";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -23,8 +23,6 @@ export async function getMovieDetail(
         const params = userId ? { userId } : {};
 
         const response = await axios.get(url, { params });
-
-        console.log("Movie detail response:", response.data.data);
         return response.data.data;
     } catch (error) {
         console.error(`Error fetching details for movie ID ${movieId}:`, error);
@@ -116,12 +114,8 @@ export async function getFilteredMovies(
             ...params,
         };
 
-        console.log("Request body for filtered movies:", requestBody);
-
         const url = `${API_URL}/api/public/filter`;
         const response = await axios.post(url, requestBody);
-
-        console.log("Filtered movies response:", response.data);
 
         return response.data;
     } catch (error) {

@@ -7,7 +7,7 @@ import { Text } from '@/components/ui/text';
 import { AlertDialog, AlertDialogBackdrop, AlertDialogContent, AlertDialogBody } from '@/components/ui/alert-dialog';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { MovieGenre, MovieType } from '@/types/movie';
+import { MovieGenre, MovieType } from '@/types/movie-type';
 
 // Import components
 import Header from './components/header';

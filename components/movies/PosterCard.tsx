@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, Pressable, StyleProp, ViewStyle } from "react-native";
 import { Image } from "expo-image";
-import { MovieBase } from "@/types/movie";
+import { MovieBase } from "@/types/movie-type";
 import { Text } from "@/components/ui/text";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -10,29 +10,24 @@ import { ActivityIndicator } from "react-native";
 import {
   CARD_WIDTH,
   CARD_HEIGHT,
-  THUMB_WIDTH,
-  THUMB_HEIGHT,
   NETFLIX_RED,
   ANIMATION,
   GRADIENTS
 } from "@/constants/ui-constants";
 
-interface MovieCardProps {
+interface PosterCardProps {
   movie: MovieBase;
   index?: number;
-  displayMode?: 'poster' | 'thumbnail';
   style?: StyleProp<ViewStyle>;
 }
 
-const MovieCard: React.FC<MovieCardProps> = ({
+const PosterCard: React.FC<PosterCardProps> = ({
   movie,
   index = 0,
-  displayMode = 'poster',
   style
 }) => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
-
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => {
@@ -45,29 +40,21 @@ const MovieCard: React.FC<MovieCardProps> = ({
     router.push(`/movie/${movie.id}`);
   };
 
-  const cardWidth = displayMode === 'poster' ? CARD_WIDTH : THUMB_WIDTH;
-  const cardHeight = displayMode === 'poster' ? CARD_HEIGHT : THUMB_HEIGHT;
-
-  const imageSource = displayMode === 'poster'
-    ? { uri: movie.poster_url || movie.thumb_url }
-    : { uri: movie.thumb_url || movie.poster_url };
+  const imageSource = { uri: movie.poster_url || movie.thumb_url };
 
   return (
     <Animated.View
       entering={FadeIn.duration(ANIMATION.FADE_IN_DURATION).delay(100 + (index % 10) * 50)}
       style={[animatedStyle]}
-      className={`${displayMode === 'thumbnail'
-          ? 'w-full'
-          : 'mr-3'
-        }`}
+      className="mr-3"
     >
       <Pressable
         onPress={handlePress}
         className="rounded-lg overflow-hidden shadow-md"
         style={[
           {
-            width: displayMode === 'poster' ? cardWidth : '100%',
-            height: cardHeight
+            width: CARD_WIDTH,
+            height: CARD_HEIGHT
           },
           style
         ]}
@@ -90,8 +77,8 @@ const MovieCard: React.FC<MovieCardProps> = ({
             </View>
           )}
 
-          {/* Year badge (for poster mode) */}
-          {displayMode === 'poster' && movie.year && (
+          {/* Year badge */}
+          {movie.year && (
             <View className="absolute top-2 left-2 z-10 bg-black/70 px-2 py-0.5 rounded-sm">
               <Text className="text-typography-800 text-[10px] font-medium">
                 {movie.year}
@@ -118,13 +105,6 @@ const MovieCard: React.FC<MovieCardProps> = ({
             >
               {movie.name}
             </Text>
-
-            {/* Year (for thumbnail mode) */}
-            {displayMode === 'thumbnail' && movie.year && (
-              <Text className="text-typography-800 text-xs mt-1">
-                {movie.year}
-              </Text>
-            )}
           </View>
         </View>
       </Pressable>
@@ -132,4 +112,4 @@ const MovieCard: React.FC<MovieCardProps> = ({
   );
 };
 
-export default MovieCard;
+export default PosterCard;

@@ -6,13 +6,14 @@ import { Text } from "@/components/ui/text";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getMovieDetail } from "@/api/movies";
-import { MovieDetail, Episode, MovieBase, UserInteractionData } from "@/types/movie";
+import { MovieDetail, Episode, MovieBase, UserInteractionData } from "@/types/movie-type";
 import { NETFLIX_RED } from "@/constants/ui-constants";
 import { VStack } from "@/components/ui/vstack";
 import EpisodeSelectorModal from "@/components/modals/episode-selector-modal";
-import MovieSection from "@/components/movies/movie-section";
+import PosterSection from "@/components/movies/PosterSection";
 import { getSimilarMovies } from "@/api/recommendations";
 import { useAuth } from "@/providers/auth-context";
+import { CommentList } from "@/components/comments";
 
 import {
   MovieHero,
@@ -215,13 +216,18 @@ export default function MovieDetailScreen() {
           {/* Similar Movies Section */}
           {similarMovies.length > 0 && (
             <View className="mb-8">
-              <MovieSection
+              <PosterSection
                 title="Phim tương tự"
                 movies={similarMovies}
                 emptyText="Không có phim tương tự nào"
               />
             </View>
           )}
+
+          {/* Comments Section */}
+          <View className="mt-2 mb-8">
+            <CommentList movieId={movie.id} />
+          </View>
         </VStack>
       </ScrollView>
 

@@ -14,7 +14,7 @@ import { VStack } from "../ui/vstack";
 import { Heading } from "../ui/heading";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Episode } from "@/types/movie";
+import { Episode } from "@/types/movie-type";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface EpisodeSelectorModalProps {

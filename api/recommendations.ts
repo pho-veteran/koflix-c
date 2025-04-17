@@ -1,5 +1,5 @@
 import axios from "axios";
-import { MovieBase } from "@/types/movie";
+import { MovieBase } from "@/types/movie-type";
 import { getIdToken } from "@/lib/firebase-auth";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;

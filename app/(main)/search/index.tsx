@@ -3,7 +3,7 @@ import { View, ScrollView } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getFilteredMovies } from "@/api/movies";
-import { MovieBase } from "@/types/movie";
+import { MovieBase } from "@/types/movie-type";
 import { router } from "expo-router";
 import SearchFilterModal from "@/components/modals/search-filter-modal";
 

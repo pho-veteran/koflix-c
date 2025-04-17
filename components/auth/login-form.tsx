@@ -4,7 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangle } from "lucide-react-native";
 import { useState } from "react";
 import { signInWithEmailAndPassword, startPhoneAuth } from "@/lib/firebase-auth";
-import { emailOrPhoneValidator, isPhone } from "@/lib/validation";
+import { emailValidator, phoneValidator } from "@/lib/validation";
+import { View, TouchableOpacity } from "react-native";
 
 import { VStack } from "../ui/vstack";
 import { HStack } from "../ui/hstack";
@@ -14,81 +15,87 @@ import { Text } from "../ui/text";
 import { FormControl, FormControlError, FormControlErrorIcon, FormControlErrorText, FormControlLabel, FormControlLabelText } from "../ui/form-control";
 import { Input, InputField } from "../ui/input";
 import { Button, ButtonText, ButtonSpinner } from "../ui/button";
-import { TouchableOpacity } from "react-native";
 
-const formSchema = z.object({
-  emailOrPhone: emailOrPhoneValidator,
+// Email login schema
+const emailSchema = z.object({
+  email: emailValidator,
   password: z.string().min(1, "Mật khẩu không được để trống")
 });
 
-type LoginFormValues = z.infer<typeof formSchema>;
+// Phone login schema (no password)
+const phoneSchema = z.object({
+  phone: phoneValidator
+});
 
 const LoginForm = () => {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [validated, setValidated] = useState({
-    emailValid: true,
-    passwordValid: true
-  });
+  const [error, setError] = useState<string | null>(null);
+  const [loginMethod, setLoginMethod] = useState<'email' | 'phone'>('email');
 
-  const {
-    control,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginFormValues>({
-    resolver: zodResolver(formSchema),
+  // Email form
+  const emailForm = useForm({
+    resolver: zodResolver(emailSchema),
     defaultValues: {
-      emailOrPhone: "",
-      password: "",
-    },
+      email: "",
+      password: ""
+    }
   });
 
-  const onSubmit = async (data: LoginFormValues) => {
-    setLoading(true);
-    setValidated({
-      emailValid: true,
-      passwordValid: true
-    });
+  // Phone form
+  const phoneForm = useForm({
+    resolver: zodResolver(phoneSchema),
+    defaultValues: {
+      phone: ""
+    }
+  });
 
-    if (isPhone(data.emailOrPhone)) {
-      const phoneAuthResult = await startPhoneAuth(data.emailOrPhone);
+  const handleEmailLogin = async (data: z.infer<typeof emailSchema>) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const loginResult = await signInWithEmailAndPassword(data.email, data.password);
+      
+      if (!loginResult.success) {
+        setError(loginResult.error?.message || "Đăng nhập không thành công");
+        return;
+      }
+      
+      // Success - will be redirected by auth context
+    } catch (error) {
+      setError("Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePhoneLogin = async (data: z.infer<typeof phoneSchema>) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const phoneAuthResult = await startPhoneAuth(data.phone);
 
       if (!phoneAuthResult.success) {
-        setLoading(false);
-        setValidated(prev => ({ ...prev, emailValid: false }));
+        setError(phoneAuthResult.error?.message || "Không thể gửi mã xác thực đến số điện thoại này");
         return;
       }
 
+      // Navigate to OTP verification screen
       router.push({
         pathname: "/(auth)/verify-code",
         params: {
-          phone: data.emailOrPhone,
+          phone: data.phone,
           verificationId: phoneAuthResult.data?.verificationId,
           isLogin: "true"
         }
       });
-    } else {
-      const loginResult = await signInWithEmailAndPassword(data.emailOrPhone, data.password);
-
-      if (!loginResult.success) {
-        setLoading(false);
-
-        if (loginResult.error?.code === 'auth/user-not-found' ||
-          loginResult.error?.code === 'auth/invalid-email' ||
-          loginResult.error?.code === 'auth/invalid-credential') {
-          setValidated(prev => ({ ...prev, emailValid: false }));
-        }
-        else if (loginResult.error?.code === 'auth/wrong-password') {
-          setValidated(prev => ({ ...prev, passwordValid: false }));
-        }
-        else {
-          setValidated({ emailValid: false, passwordValid: false });
-        }
-        return;
-      }
+    } catch (error) {
+      setError("Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -103,86 +110,119 @@ const LoginForm = () => {
           </Text>
         </VStack>
       </VStack>
-      <VStack className="w-full">
-        <VStack space="xl" className="w-full">
-          <FormControl
-            isInvalid={!!errors.emailOrPhone || !validated.emailValid}
-            className="w-full"
-          >
-            <FormControlLabel>
-              <FormControlLabelText>Email/Số điện thoại</FormControlLabelText>
-            </FormControlLabel>
-            <Controller
-              name="emailOrPhone"
-              control={control}
-              render={({ field: { onChange, onBlur, value } }) => (
-                <Input>
-                  <InputField
-                    placeholder="Nhập email hoặc số điện thoại..."
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                  />
-                </Input>
-              )}
-            />
-            <FormControlError>
-              <FormControlErrorIcon as={AlertTriangle} />
-              <FormControlErrorText>
-                {errors.emailOrPhone?.message || "Email hoặc số điện thoại không hợp lệ"}
-              </FormControlErrorText>
-            </FormControlError>
-          </FormControl>
 
-          <FormControl
-            isInvalid={!!errors.password || !validated.passwordValid}
-            className="w-full"
-          >
-            <FormControlLabel>
-              <FormControlLabelText>Mật khẩu</FormControlLabelText>
-            </FormControlLabel>
-            <Controller
-              name="password"
-              control={control}
-              render={({ field: { onChange, onBlur, value } }) => (
-                <Input>
-                  <InputField
-                    type="password"
-                    placeholder="Nhập mật khẩu..."
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                  />
-                </Input>
-              )}
-            />
-            <FormControlError>
-              <FormControlErrorIcon as={AlertTriangle} />
-              <FormControlErrorText>
-                {errors.password?.message || "Mật khẩu không chính xác"}
-              </FormControlErrorText>
-            </FormControlError>
-          </FormControl>
+      {/* Login Method Toggle */}
+      <HStack className="bg-secondary-300/20 p-1 rounded-xl mb-4">
+        <TouchableOpacity 
+          className={`flex-1 p-3 rounded-lg ${loginMethod === 'email' ? 'bg-primary-400' : 'bg-transparent'}`} 
+          onPress={() => setLoginMethod('email')}
+        >
+          <Text className={`text-center font-medium ${loginMethod === 'email' ? 'text-typography-950' : 'text-typography-700'}`}>
+            Email
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          className={`flex-1 p-3 rounded-lg ${loginMethod === 'phone' ? 'bg-primary-400' : 'bg-transparent'}`} 
+          onPress={() => setLoginMethod('phone')}
+        >
+          <Text className={`text-center font-medium ${loginMethod === 'phone' ? 'text-typography-950' : 'text-typography-700'}`}>
+            Số điện thoại
+          </Text>
+        </TouchableOpacity>
+      </HStack>
 
-          <HStack className="justify-end">
-            <TouchableOpacity onPress={() => router.replace("/(auth)/forgot-password")}>
-              <Text
-                className="font-medium text-primary-700 group-hover/link:text-primary-600 group-hover/pressed:text-primary-700"
-                size="sm"
-              >
-                Quên mật khẩu?
-              </Text>
-            </TouchableOpacity>
-          </HStack>
-        </VStack>
+      {error && (
+        <FormControl isInvalid={true} className="mb-2">
+          <FormControlError className="justify-center">
+            <FormControlErrorIcon as={AlertTriangle} />
+            <FormControlErrorText>{error}</FormControlErrorText>
+          </FormControlError>
+        </FormControl>
+      )}
 
-        <VStack className="w-full my-7" space="lg">
+      {loginMethod === 'email' ? (
+        <VStack className="w-full">
+          <VStack space="xl" className="w-full">
+            <FormControl
+              isInvalid={!!emailForm.formState.errors.email}
+              className="w-full"
+            >
+              <FormControlLabel>
+                <FormControlLabelText>Email</FormControlLabelText>
+              </FormControlLabel>
+              <Controller
+                name="email"
+                control={emailForm.control}
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <Input>
+                    <InputField
+                      placeholder="Nhập email của bạn..."
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </Input>
+                )}
+              />
+              <FormControlError>
+                <FormControlErrorIcon as={AlertTriangle} />
+                <FormControlErrorText>
+                  {emailForm.formState.errors.email?.message}
+                </FormControlErrorText>
+              </FormControlError>
+            </FormControl>
+
+            <FormControl
+              isInvalid={!!emailForm.formState.errors.password}
+              className="w-full"
+            >
+              <FormControlLabel>
+                <FormControlLabelText>Mật khẩu</FormControlLabelText>
+              </FormControlLabel>
+              <Controller
+                name="password"
+                control={emailForm.control}
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <Input>
+                    <InputField
+                      type="password"
+                      placeholder="Nhập mật khẩu..."
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      secureTextEntry
+                    />
+                  </Input>
+                )}
+              />
+              <FormControlError>
+                <FormControlErrorIcon as={AlertTriangle} />
+                <FormControlErrorText>
+                  {emailForm.formState.errors.password?.message}
+                </FormControlErrorText>
+              </FormControlError>
+            </FormControl>
+
+            <HStack className="justify-end">
+              <TouchableOpacity onPress={() => router.replace("/(auth)/forgot-password")}>
+                <Text
+                  className="font-medium text-primary-700"
+                  size="sm"
+                >
+                  Quên mật khẩu?
+                </Text>
+              </TouchableOpacity>
+            </HStack>
+          </VStack>
+
           <Button
             variant="solid"
             size="lg"
             isDisabled={loading}
-            onPress={handleSubmit(onSubmit)}
-            className="w-full mt-4 bg-primary-400"
+            onPress={emailForm.handleSubmit(handleEmailLogin)}
+            className="w-full mt-8 bg-primary-400"
           >
             {loading ? (
               <ButtonSpinner color="white" />
@@ -191,19 +231,69 @@ const LoginForm = () => {
             )}
           </Button>
         </VStack>
+      ) : (
+        <VStack className="w-full">
+          <FormControl
+            isInvalid={!!phoneForm.formState.errors.phone}
+            className="w-full"
+          >
+            <FormControlLabel>
+              <FormControlLabelText>Số điện thoại</FormControlLabelText>
+            </FormControlLabel>
+            <Controller
+              name="phone"
+              control={phoneForm.control}
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input>
+                  <InputField
+                    placeholder="Nhập số điện thoại..."
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    keyboardType="phone-pad"
+                  />
+                </Input>
+              )}
+            />
+            <FormControlError>
+              <FormControlErrorIcon as={AlertTriangle} />
+              <FormControlErrorText>
+                {phoneForm.formState.errors.phone?.message}
+              </FormControlErrorText>
+            </FormControlError>
+          </FormControl>
 
-        <HStack className="self-center" space="sm">
-          <Text size="md">Chưa có tài khoản?</Text>
-          <TouchableOpacity onPress={() => router.replace("/(auth)/signup")}>
-            <Text
-              className="font-medium text-primary-700 group-hover/link:text-primary-600 group-hover/pressed:text-primary-700"
-              size="md"
-            >
-              Đăng ký
-            </Text>
-          </TouchableOpacity>
-        </HStack>
-      </VStack>
+          <Text className="text-typography-600 text-sm mt-2">
+            Chúng tôi sẽ gửi mã xác thực OTP đến số điện thoại của bạn.
+          </Text>
+
+          <Button
+            variant="solid"
+            size="lg"
+            isDisabled={loading}
+            onPress={phoneForm.handleSubmit(handlePhoneLogin)}
+            className="w-full mt-8 bg-primary-400"
+          >
+            {loading ? (
+              <ButtonSpinner color="white" />
+            ) : (
+              <ButtonText className="text-typography-950">Nhận mã xác thực</ButtonText>
+            )}
+          </Button>
+        </VStack>
+      )}
+
+      <HStack className="self-center mt-8" space="sm">
+        <Text size="md">Chưa có tài khoản?</Text>
+        <TouchableOpacity onPress={() => router.replace("/(auth)/signup")}>
+          <Text
+            className="font-medium text-primary-700"
+            size="md"
+          >
+            Đăng ký
+          </Text>
+        </TouchableOpacity>
+      </HStack>
     </VStack>
   );
 };

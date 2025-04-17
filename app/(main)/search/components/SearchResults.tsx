@@ -2,8 +2,8 @@ import React from "react";
 import { View, TouchableOpacity } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Ionicons } from "@expo/vector-icons";
-import MovieSection from "@/components/movies/movie-section";
-import { MovieBase } from "@/types/movie";
+import ThumbnailSection from "@/components/movies/ThumbnailSection";
+import { MovieBase } from "@/types/movie-type";
 
 interface SearchResultsProps {
   results: MovieBase[];
@@ -41,10 +41,9 @@ const SearchResults = ({
       </View>
 
       {/* Results grid */}
-      <MovieSection
+      <ThumbnailSection
         title=""
-        displayMode="thumbnail"
-        thumbnailColumns={2}
+        columns={2}
         movies={results}
         emptyText=""
       />

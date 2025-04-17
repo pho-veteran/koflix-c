@@ -6,12 +6,13 @@ import { VStack } from "@/components/ui/vstack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import HomeHeader from "@/components/layout/home-header";
 import { getRecentlyAddedMovies, getTrendingMovies, getGenreTrending, getTypeTrending, getRecentGenre, getRecentType } from "@/api/recommendations";
-import { MovieBase } from "@/types/movie";
-import MovieSection from "@/components/movies/movie-section";
+import { MovieBase } from "@/types/movie-type";
 import FeaturedCarousel from "@/components/movies/featured-carousel";
 import { HEADER_HEIGHT, LOADING, NETFLIX_RED, TEXT_STYLING, APP_NAME } from "@/constants/ui-constants";
 import DiscoverModal from "@/components/modals/discover-modal";
 import { Ionicons } from "@expo/vector-icons";
+import PosterSection from "@/components/movies/PosterSection";
+import ThumbnailSection from "@/components/movies/ThumbnailSection";
 
 export default function DiscoverPage() {
   const insets = useSafeAreaInsets();
@@ -208,31 +209,28 @@ export default function DiscoverPage() {
             )}
 
             <VStack space="md" className="px-4 mb-6 mt-4">
-              <MovieSection
+              <ThumbnailSection
                 title={`Phim hot của ${filterName}`}
                 movies={trendingMovies}
                 emptyText={`Không tìm thấy phim hot nào cho ${filterName}.`}
-                displayMode="thumbnail"
               />
 
-              <MovieSection
+              <ThumbnailSection
                 title="Mới cập nhật"
                 movies={recentMovies}
                 emptyText="Không có phim mới cập nhật."
-                displayMode="thumbnail"
               />
             </VStack>
           </>
         ) : (
-          <VStack space="md" className="px-4 mb-6">
-            <MovieSection
+          <View className="px-4 mb-6">
+            <ThumbnailSection
               title="Khám phá phim"
               movies={recentMovies}
               emptyText="Không có phim nào."
-              displayMode="thumbnail"
-              thumbnailColumns={1}
+              columns={2}
             />
-          </VStack>
+          </View>
         )}
       </ScrollView>
 

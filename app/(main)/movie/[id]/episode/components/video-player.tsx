@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Text } from "@/components/ui/text";
 import { HStack } from "@/components/ui/hstack";
 import { NETFLIX_RED } from "@/constants/ui-constants";
-import { EpisodeServer } from "@/types/movie";
+import { EpisodeServer } from "@/types/movie-type";
 import { VStack } from '@/components/ui/vstack';
 
 interface VideoPlayerProps {
@@ -23,6 +23,7 @@ interface VideoPlayerProps {
   onOpenEpisodeModal: () => void;
   setIsVideoLoading: (loading: boolean) => void;
   setVideoError: (error: string) => void;
+  onVideoLoaded?: () => void;
 }
 
 const VideoPlayer = ({
@@ -38,7 +39,8 @@ const VideoPlayer = ({
   onGoBack,
   onOpenEpisodeModal,
   setIsVideoLoading,
-  setVideoError
+  setVideoError,
+  onVideoLoaded
 }: VideoPlayerProps) => {
   const videoRef = useRef<VideoRef>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -114,7 +116,12 @@ const VideoPlayer = ({
           style={styles.video}
           resizeMode="contain"
           onLoadStart={() => setIsVideoLoading(true)}
-          onLoad={handleLoad}
+          onLoad={(data) => {
+            handleLoad(data);
+            if (onVideoLoaded) {
+              onVideoLoaded();
+            }
+          }}
           onProgress={handleProgress}
           onError={(error) => {
             console.error("Video error:", error);
@@ -266,6 +273,7 @@ const styles = StyleSheet.create({
   controlsContainer: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'space-between',
+    zIndex: 10,
   },
   controlBar: {
     width: '100%',
@@ -277,13 +285,16 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 34 : 10,
   },
   centerButton: {
+    position: 'absolute',
     alignSelf: 'center',
+    top: '35%', 
   },
   loaderContainer: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 5,
   },
   errorContainer: {
     ...StyleSheet.absoluteFillObject,
@@ -291,6 +302,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     padding: 20,
+    zIndex: 3,
   },
   progressBarContainer: {
     width: '100%',

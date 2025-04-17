@@ -3,7 +3,7 @@ import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { Text } from '@/components/ui/text';
 import { Heading } from '@/components/ui/heading';
-import { Country, Category } from '@/types/movie';
+import { Country, Category } from '@/types/movie-type';
 
 interface MovieDetailsProps {
   countries: Country[];
