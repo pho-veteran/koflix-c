@@ -94,7 +94,7 @@ const SignupForm = () => {
           }
 
           setMessage("Đang cập nhật thông tin người dùng...");
-          await createOrUpdateUser(signupResult.data.user.uid, {
+          await createOrUpdateUser({
             name: data.name,
             emailOrPhone: data.emailOrPhone
           });

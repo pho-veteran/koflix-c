@@ -1,20 +1,28 @@
 import axios from "axios";
 import { User } from "@/types/user";
+import { getIdToken } from "@/lib/firebase-auth";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 /**
- * Get user details from the backend
- * @param uid Firebase user ID
- * @returns User data from the backend
+ * Get user details from the backend using Firebase ID token
+ * @returns User data from the backend or null if not found/error
  */
-export async function getUserDetail(uid: string): Promise<User | null> {
-    console.log("Fetching user details for UID:", uid);
+export async function getUserDetail(): Promise<User | null> {
     try {
+        // Get the Firebase ID token
+        const tokenResult = await getIdToken(true);
+        
+        if (!tokenResult.success || !tokenResult.data) {
+            console.error("Failed to get ID token:", tokenResult.error?.message);
+            return null;
+        }
+        
+        // Send the ID token to the backend
         const response = await axios.post(
             `${API_URL}/api/public/user/get-user`,
             {
-                uid,
+                idToken: tokenResult.data
             }
         );
 
@@ -30,19 +38,24 @@ export async function getUserDetail(uid: string): Promise<User | null> {
 
 /**
  * Create or update user in the backend
- * @param uid Firebase user ID
  * @param userData User data to update
  * @returns Updated user data
  */
 export async function createOrUpdateUser(
-    uid: string,
     userData: { name?: string; emailOrPhone?: string }
 ): Promise<User | null> {
     try {
+        const tokenResult = await getIdToken(true);
+        
+        if (!tokenResult.success || !tokenResult.data) {
+            console.error("Failed to get ID token:", tokenResult.error?.message);
+            return null;
+        }
+        
         const response = await axios.post(
             `${API_URL}/api/public/user/create-user`,
             {
-                uid,
+                idToken: tokenResult.data,
                 ...userData,
             }
         );

@@ -305,3 +305,31 @@ export const updateUserPassword = async (newPassword: string): Promise<AuthResul
         };
     }
 };
+
+// Get ID Token for the current user
+export const getIdToken = async (forceRefresh: boolean = false): Promise<AuthResult<string>> => {
+    try {
+        const currentUser = auth().currentUser;
+        if (!currentUser) {
+            return {
+                success: false,
+                error: {
+                    code: "auth/no-current-user",
+                    message: "Không có người dùng nào đang đăng nhập để lấy ID token."
+                }
+            };
+        }
+
+        const idToken = await currentUser.getIdToken(forceRefresh);
+        return { success: true, data: idToken };
+    } catch (error: any) {
+        console.error("Get ID Token error:", error.code, error.message);
+        return {
+            success: false,
+            error: {
+                code: error.code || "auth/get-id-token-failed",
+                message: getFirebaseErrorMessage(error) || "Không thể lấy ID token."
+            }
+        };
+    }
+};

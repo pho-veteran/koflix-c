@@ -39,7 +39,7 @@ export default function HomePage() {
       const [trending, recent, recommended] = await Promise.all([
         getTrendingMovies(),
         getRecentlyAddedMovies(24),
-        user?.id ? getRecommendedMovies(user.id) : Promise.resolve([])
+        getRecommendedMovies()
       ]);
 
       setTrendingMovies(trending);

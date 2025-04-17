@@ -64,8 +64,8 @@ const VerifyCodeForm = () => {
 
     const handleResendCode = async () => {
         setError(null);
-        setIsLoading(true); // Start loading
-        setMessage("Đang gửi lại mã xác thực..."); // Set loading message
+        setIsLoading(true);
+        setMessage("Đang gửi lại mã xác thực...");
         
         try {
             if (params.phone) {
@@ -98,14 +98,14 @@ const VerifyCodeForm = () => {
             
             return Promise.resolve();
         } finally {
-            setIsLoading(false); // Always stop loading
+            setIsLoading(false);
         }
     };
 
     const onSubmit = async (data: VerifyCodeFormValues) => {
         setError(null);
-        setIsLoading(true); // Start loading
-        setMessage("Đang xác thực mã OTP..."); // Set initial loading message
+        setIsLoading(true);
+        setMessage("Đang xác thực mã OTP...");
         
         try {
             if (params.verificationId && params.phone) {
@@ -113,43 +113,40 @@ const VerifyCodeForm = () => {
                 
                 if (!verifyResult.success) {
                     setError(verifyResult.error?.message || "Mã xác thực không đúng");
-                    setIsLoading(false); // Stop loading on error
-                    setMessage(""); // Clear message
+                    setIsLoading(false);
+                    setMessage("");
                     return;
                 }
                 
                 // Check if verifyResult.data exists before accessing
                 if (!verifyResult.data) {
                     setError("Xác thực thành công nhưng không nhận được thông tin người dùng");
-                    setIsLoading(false); // Stop loading on error
-                    setMessage(""); // Clear message
+                    setIsLoading(false);
+                    setMessage("");
                     return;
                 }
                 
                 // If this is a signup flow (not reset password or login)
                 if (!params.resetPassword && !params.isLogin && params.userName) {
                     try {
-                        setMessage("Đang cập nhật thông tin người dùng..."); // Update message for user creation
-                        // Create or update user with the name from params
-                        await createOrUpdateUser(verifyResult.data.user.uid, {
-                            name: params.userName, // Use the name passed from signup
+                        setMessage("Đang cập nhật thông tin người dùng...");
+                        await createOrUpdateUser({
+                            name: params.userName,
                             emailOrPhone: params.phone
                         });
                         
-                        setMessage("Đăng ký thành công!"); // Success message
-                        // Navigate to home page
-                        router.replace("/(main)/home");
+                        setMessage("Đăng ký thành công!");
+                        router.replace("/(main)/(tabs)/home");
                     } catch (error) {
                         setError("Xác thực thành công nhưng không thể cập nhật thông tin người dùng.");
-                        setIsLoading(false); // Stop loading on error
-                        setMessage(""); // Clear message
+                        setIsLoading(false);
+                        setMessage("");
                     }
                     return;
                 }
                 
-                // Handle other flows (reset password, login)
                 if (params.resetPassword === "true") {
-                    setMessage("Xác thực thành công! Đang chuyển hướng..."); // Success message for reset flow
+                    setMessage("Xác thực thành công! Đang chuyển hướng...");
                     router.replace({
                         pathname: "/(auth)/reset-password",
                         params: { 
@@ -160,20 +157,19 @@ const VerifyCodeForm = () => {
                 }
             } else {
                 setError("Không tìm thấy thông tin xác thực");
-                setIsLoading(false); // Stop loading on error
-                setMessage(""); // Clear message
+                setIsLoading(false);
+                setMessage("");
             }
         } catch (error: any) {
             console.error("Verification error:", error);
             setError("Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau.");
-            setIsLoading(false); // Stop loading on unexpected error
-            setMessage(""); // Clear message
+            setIsLoading(false);
+            setMessage("");
         } finally {
-            // Ensure loading state is cleared if not already done in successful navigation case
             setTimeout(() => {
                 setIsLoading(false);
                 setMessage("");
-            }, 1000); // Small delay to ensure loading state is visible before navigation
+            }, 1000);
         }
     };
 

@@ -1,5 +1,6 @@
 import axios from "axios";
 import { MovieBase } from "@/types/movie";
+import { getIdToken } from "@/lib/firebase-auth";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -45,27 +46,28 @@ export async function getRecentlyAddedMovies(
 
 /**
  * Fetches personalized movie recommendations for a user.
- * @param userId - The ID of the user for whom to fetch recommendations.
  * @returns Promise<MovieBase[]> - Array of recommended movies.
  */
-export async function getRecommendedMovies(
-    userId: string
-): Promise<MovieBase[]> {
-    if (!userId) {
-        console.warn("Cannot fetch recommended movies without userId.");
-        return [];
-    }
+export async function getRecommendedMovies(): Promise<MovieBase[]> {
     try {
+        const tokenResult = await getIdToken(true);
+        
+        if (!tokenResult.success || !tokenResult.data) {
+            console.warn("Cannot fetch recommended movies without valid authentication.");
+            return [];
+        }
+        
         const response = await axios.post(
             `${API_URL}/api/public/recommendations/personalized/hybrid-for-you`,
             {
-                userId,
+                idToken: tokenResult.data
             }
         );
+        
         return response.data.data;
     } catch (error) {
         console.error("Error fetching recommended movies:", error);
-        throw error;
+        return [];
     }
 }
 
