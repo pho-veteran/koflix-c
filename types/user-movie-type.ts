@@ -36,3 +36,32 @@ export interface MovieInteraction {
     rating: number | null;
     timestamp: string;
 }
+
+export interface EpisodeWatchHistory {
+    id: string;
+    userId: string;
+    movieId: string;
+    episodeServerId: string;
+    progress: number;
+    durationWatched: number;
+    watchedAt: string;
+    movie?: {
+        id: string;
+        name: string;
+        slug: string;
+        poster_url: string;
+        thumb_url: string;
+        year: number;
+        episode_total: string;
+    };
+    episodeServer?: {
+        id: string;
+        server_name: string;
+        filename: string;
+        episode: {
+            id: string;
+            name: string;
+            slug: string;
+        };
+    };
+}

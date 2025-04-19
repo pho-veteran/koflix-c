@@ -1,5 +1,5 @@
 import axios from "axios";
-import { Comment, Reply, MovieInteraction, InteractionType } from "@/types/user-movie-type";
+import { Comment, Reply, MovieInteraction, InteractionType, EpisodeWatchHistory } from "@/types/user-movie-type";
 import { getIdToken } from "@/lib/firebase-auth";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -246,6 +246,172 @@ export async function getReplies(
     return response.data;
   } catch (error) {
     console.error("Error fetching replies:", error);
+    return null;
+  }
+}
+
+/**
+ * Logs when a user views a movie and increments the movie's view count
+ * @param movieId The ID of the movie being viewed
+ * @returns Success message or error
+ */
+export async function trackMovieView(
+  movieId: string
+): Promise<{success: boolean, message: string}> {
+  try {
+    if (!movieId) throw new Error("Movie ID is required");
+    
+    const tokenResult = await getIdToken(true);
+    
+    if (!tokenResult.success || !tokenResult.data) {
+      console.error("Failed to get ID token for view tracking:", tokenResult.error?.message);
+      throw new Error("Authentication required to track movie views.");
+    }
+    
+    const response = await axios.post(
+      `${API_URL}/api/public/user-movie/view`,
+      {
+        idToken: tokenResult.data,
+        movieId
+      }
+    );
+    
+    return response.data;
+  } catch (error: any) {
+    let errorMessage = "An unexpected error occurred during view tracking.";
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        const status = error.response.status;
+        const apiError = error.response.data?.error || error.response.data?.message || "Unknown API error";
+        errorMessage = `API Error (${status}): ${apiError}`;
+        console.error(`API Error (${status}):`, error.response.data);
+      } else if (error.request) {
+        errorMessage = "No response received from server. Check network connection.";
+        console.error("No response received:", error.request);
+      } else {
+        errorMessage = `Request setup error: ${error.message}`;
+        console.error("Request setup error:", error.message);
+      }
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+      console.error("View tracking pre-request error:", error.message);
+    } else {
+      console.error("Unexpected error type:", error);
+    }
+    return { success: false, message: errorMessage };
+  }
+}
+
+/**
+ * Records or updates a user's watching progress for a specific movie episode
+ * @param movieId The ID of the movie
+ * @param episodeServerId The ID of the episode server
+ * @param progress Playback position (0-100)
+ * @param durationWatched Optional: seconds watched in this session
+ * @returns Updated watch history record
+ */
+export async function saveWatchProgress(
+  movieId: string,
+  episodeServerId: string,
+  progress: number,
+  durationWatched?: number
+): Promise<{success: boolean, watchHistory: EpisodeWatchHistory}> {
+  try {
+    if (!movieId) throw new Error("Movie ID is required");
+    if (!episodeServerId) throw new Error("Episode server ID is required");
+    if (progress < 0 || progress > 100) throw new Error("Progress must be between 0 and 100");
+    
+    const tokenResult = await getIdToken(true);
+    
+    if (!tokenResult.success || !tokenResult.data) {
+      console.error("Failed to get ID token for saving watch progress:", tokenResult.error?.message);
+      throw new Error("Authentication required to save watch progress.");
+    }
+    
+    const payload: {
+      idToken: string;
+      movieId: string;
+      episodeServerId: string;
+      progress: number;
+      durationWatched?: number;
+    } = {
+      idToken: tokenResult.data,
+      movieId,
+      episodeServerId,
+      progress
+    };
+    
+    if (durationWatched !== undefined) {
+      payload.durationWatched = durationWatched;
+    }
+    
+    const response = await axios.post(
+      `${API_URL}/api/public/user-movie/watch-history`,
+      payload
+    );
+    
+    return response.data;
+  } catch (error: any) {
+    let errorMessage = "An unexpected error occurred while saving watch progress.";
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        const status = error.response.status;
+        const apiError = error.response.data?.error || error.response.data?.message || "Unknown API error";
+        errorMessage = `API Error (${status}): ${apiError}`;
+        console.error(`API Error (${status}):`, error.response.data);
+      } else if (error.request) {
+        errorMessage = "No response received from server. Check network connection.";
+        console.error("No response received:", error.request);
+      } else {
+        errorMessage = `Request setup error: ${error.message}`;
+        console.error("Request setup error:", error.message);
+      }
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+      console.error("Watch progress pre-request error:", error.message);
+    } else {
+      console.error("Unexpected error type:", error);
+    }
+    return { success: false, watchHistory: {} as EpisodeWatchHistory };
+  }
+}
+
+/**
+ * Fetches a user's watch history
+ * @param page Page number for pagination (default: 1)
+ * @param limit Number of items per page (default: 20, max: 50)
+ * @returns Watch history items and pagination data
+ */
+export async function getWatchHistory(
+  page: number = 1,
+  limit: number = 20
+): Promise<{data: EpisodeWatchHistory[], pagination: any} | null> {
+  try {
+    const tokenResult = await getIdToken(true);
+    
+    if (!tokenResult.success || !tokenResult.data) {
+      console.error("Failed to get ID token for fetching watch history:", tokenResult.error?.message);
+      return null;
+    }
+    
+    const params = {
+      page,
+      limit: Math.min(limit, 50)
+    };
+    
+    const response = await axios.get(
+      `${API_URL}/api/public/user-movie/watch-history`,
+      { 
+        params,
+        headers: {
+          Authorization: `Bearer ${tokenResult.data}`
+        }
+      }
+    );
+    
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching watch history:", error);
     return null;
   }
 }

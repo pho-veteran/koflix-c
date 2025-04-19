@@ -14,7 +14,7 @@ export interface DownloadTask {
   ffmpegSessionId?: number;
   error?: string;
   createdAt: number;
-  userId: string; // Add userId field to associate downloads with specific users
+  userId: string;
   
   episodeData?: {
     movieId?: string;

@@ -1,15 +1,15 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { onAuthStateChanged, FirebaseUser } from '../lib/firebase-auth';
+import { onAuthStateChanged, FirebaseUser, signOut } from '../lib/firebase-auth';
 import { User } from '@/types/user-type';
 import { getUserDetail, createOrUpdateUser } from '@/api/users';
 
-// Enhanced auth context with proper types
 export type AuthContextType = {
   firebaseUser: FirebaseUser;
   user: User | null;
   authInitialized: boolean;
   isLoading: boolean;
   refreshUserData: () => Promise<void>;
+  logout: () => Promise<void>;
 };
 
 // Create the auth context
@@ -24,12 +24,10 @@ export function useAuth() {
   return context;
 }
 
-// Auth provider props
 type AuthProviderProps = {
   children: ReactNode;
 };
 
-// Auth provider component
 export function AuthProvider({ children }: AuthProviderProps) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -66,6 +64,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const logout = async (): Promise<void> => {
+    try {
+      setIsLoading(true);
+      const result = await signOut();
+
+      if (!result.success) {
+        console.error('Logout error:', result.error?.message);
+        throw new Error(result.error?.message || 'Logout failed');
+      }
+
+      setUser(null);
+    } catch (error) {
+      console.error('Error during logout:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged((currentUser) => {
       setFirebaseUser(currentUser);
@@ -88,7 +105,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       user,
       authInitialized,
       isLoading,
-      refreshUserData
+      refreshUserData,
+      logout
     }}>
       {children}
     </AuthContext.Provider>
