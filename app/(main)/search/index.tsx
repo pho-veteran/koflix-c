@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import { View, ScrollView } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useIsFocused } from "@react-navigation/native"; 
 import { getFilteredMovies } from "@/api/movies";
 import { MovieBase } from "@/types/movie-type";
 import { router } from "expo-router";
@@ -16,6 +17,7 @@ import LoadingState from "./components/LoadingState";
 
 const SearchPage = () => {
   const insets = useSafeAreaInsets();
+  const isFocused = useIsFocused(); 
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<MovieBase[]>([]);
@@ -31,7 +33,6 @@ const SearchPage = () => {
     endYear?: number;
   }>({});
 
-  // Debounce function to limit API calls
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const debounceSearch = useCallback((query: string, filters: any, page: number) => {
@@ -40,6 +41,8 @@ const SearchPage = () => {
     }
 
     timeoutRef.current = setTimeout(() => {
+      if (!isFocused) return;
+      
       if (query.trim().length > 0 || Object.keys(filters).length > 0) {
         fetchResults(query, filters, page);
       } else {
@@ -48,35 +51,43 @@ const SearchPage = () => {
         setTotalResults(0);
       }
     }, 500);
-  }, []);
+  }, [isFocused]);
 
   useEffect(() => {
-    debounceSearch(searchQuery, activeFilters, currentPage);
+    if (isFocused) {
+      debounceSearch(searchQuery, activeFilters, currentPage);
+    }
 
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [searchQuery, activeFilters, currentPage]);
+  }, [searchQuery, activeFilters, currentPage, isFocused]);
 
   const fetchResults = async (query: string, filters: any, page: number) => {
+    if (!isFocused) return;
+
     try {
       setIsSearching(true);
       const response = await getFilteredMovies({
         name: query,
         page,
-        limit: 20,
+        limit: 10,
         ...filters,
       });
 
-      setResults(response.data);
-      setTotalPages(response.pagination.totalPages);
-      setTotalResults(response.pagination.totalCount);
+      if (isFocused) {
+        setResults(response.data);
+        setTotalPages(response.pagination.totalPages);
+        setTotalResults(response.pagination.totalCount);
+      }
     } catch (error) {
       console.error("Search error:", error);
     } finally {
-      setIsSearching(false);
+      if (isFocused) {
+        setIsSearching(false);
+      }
     }
   };
 
@@ -115,6 +126,10 @@ const SearchPage = () => {
   };
 
   const hasActiveFilters = Object.keys(activeFilters).length > 0;
+
+  if (!isFocused) {
+    return null;
+  }
 
   return (
     <View className="flex-1 bg-black">
@@ -165,12 +180,14 @@ const SearchPage = () => {
       </ScrollView>
 
       {/* Filter Modal */}
-      <SearchFilterModal
-        visible={filterModalVisible}
-        onClose={() => setFilterModalVisible(false)}
-        onApply={handleFilterApply}
-        initialFilters={activeFilters}
-      />
+      {isFocused && (
+        <SearchFilterModal
+          visible={filterModalVisible}
+          onClose={() => setFilterModalVisible(false)}
+          onApply={handleFilterApply}
+          initialFilters={activeFilters}
+        />
+      )}
     </View>
   );
 };

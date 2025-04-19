@@ -29,7 +29,7 @@ export default function Index() {
     return (
       <View className="flex-1 bg-background-100 justify-center items-center">
         <ActivityIndicator size="large" color="#E50914" />
-        <Text className="mt-4 text-typography-700">Đang tải ứng dụng...</Text>
+        <Text className="mt-4 text-typography-700"></Text>
       </View>
     );
   }

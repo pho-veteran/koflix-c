@@ -1,17 +1,25 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import * as DownloadService from '@/services/download-service';
+import * as StorageService from '@/services/storage-service';
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
+import { DownloadTask } from '@/types/download-type';
+import { useAuth } from './auth-context';
 
 interface DownloadContextType {
   isInitialized: boolean;
+  downloads: DownloadTask[];
+  userDownloads: DownloadTask[];
   refreshDownloads: () => Promise<void>;
+  userId: string;
 }
 
 const DownloadContext = createContext<DownloadContextType>({
   isInitialized: false,
-  refreshDownloads: async () => {},
+  downloads: [],
+  userDownloads: [],
+  refreshDownloads: async () => { },
+  userId: '',
 });
 
 export const useDownload = () => useContext(DownloadContext);
@@ -22,11 +30,14 @@ interface DownloadProviderProps {
 
 export const DownloadProvider: React.FC<DownloadProviderProps> = ({ children }) => {
   const [isInitialized, setIsInitialized] = useState(false);
+  const [downloads, setDownloads] = useState<DownloadTask[]>([]);
+  const [userDownloads, setUserDownloads] = useState<DownloadTask[]>([]);
   const router = useRouter();
-  
-  // Configure notification handling
+  const { firebaseUser } = useAuth();
+  const userId = firebaseUser?.uid || '';
+
+  // Notification Handling Effect
   useEffect(() => {
-    // Set up the notification handler
     Notifications.setNotificationHandler({
       handleNotification: async (notification) => {
         return {
@@ -36,31 +47,52 @@ export const DownloadProvider: React.FC<DownloadProviderProps> = ({ children }) 
         };
       },
     });
-    
-    // Set up notification response handler to navigate when a notification is tapped
+
     const notificationResponseListener = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data;
-      
-      // Handle different notification types
+
       if (data?.type === 'completion' && data?.success === true) {
-        // If it's a successful completion notification, navigate to downloaded page
-        router.push('/downloaded');
+        router.push('/(main)/(tabs)/downloaded');
       }
     });
-    
+
     return () => {
-      // Clean up the listener
       Notifications.removeNotificationSubscription(notificationResponseListener);
     };
-  }, []);
-  
-  // Initialize the download service when the app starts
+  }, [router]);
+
+  // Function to refresh downloads state
+  const refreshDownloads = useCallback(async () => {
+    if (!isInitialized) {
+      return;
+    }
+    try {
+      // Get all downloads
+      const currentDownloads = DownloadService.getAllDownloads();
+      setDownloads(currentDownloads);
+      
+      // Filter downloads for current user
+      if (userId) {
+        const currentUserDownloads = currentDownloads.filter(task => task.userId === userId);
+        setUserDownloads(currentUserDownloads);
+      } else {
+        setUserDownloads([]);
+      }
+    } catch (error) {
+      console.error("Failed to refresh downloads:", error);
+    }
+  }, [isInitialized, userId]);
+
+  // Initialization Effect
   useEffect(() => {
+    let isMounted = true;
     const initializeService = async () => {
       try {
-        console.log('Initializing Download Service from provider...');
         await DownloadService.initializeDownloadService();
-        setIsInitialized(true);
+        if (isMounted) {
+          setIsInitialized(true);
+          await refreshDownloads();
+        }
       } catch (error) {
         console.error('Failed to initialize download service:', error);
       }
@@ -68,22 +100,41 @@ export const DownloadProvider: React.FC<DownloadProviderProps> = ({ children }) 
 
     initializeService();
 
-    // Clean up when the app is closed
     return () => {
+      isMounted = false;
       DownloadService.cleanupDownloadService();
     };
-  }, []);
+  }, [refreshDownloads]);
 
-  const refreshDownloads = async () => {
-    // This is just a utility function to force update download data
-    if (!isInitialized) {
-      await DownloadService.initializeDownloadService();
-      setIsInitialized(true);
+  // Effect to Listen for Download Data Changes
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    // Subscribe to changes emitted by StorageService
+    const unsubscribe = StorageService.subscribeToDownloadDataChanges(() => {
+      refreshDownloads();
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [isInitialized, refreshDownloads]);
+  
+  // Effect to update user-specific downloads when user changes
+  useEffect(() => {
+    if (isInitialized) {
+      refreshDownloads();
     }
-  };
+  }, [userId, isInitialized, refreshDownloads]);
 
   return (
-    <DownloadContext.Provider value={{ isInitialized, refreshDownloads }}>
+    <DownloadContext.Provider value={{ 
+      isInitialized, 
+      downloads, 
+      userDownloads,
+      refreshDownloads,
+      userId
+    }}>
       {children}
     </DownloadContext.Provider>
   );

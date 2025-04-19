@@ -1,425 +1,379 @@
-import * as FileSystem from 'expo-file-system';
-import * as Notifications from 'expo-notifications';
-import NetInfo from '@react-native-community/netinfo';
-import { FFmpegKit, ReturnCode } from 'ffmpeg-kit-react-native';
-import { Platform } from 'react-native';
+import { FFmpegKit, ReturnCode } from "ffmpeg-kit-react-native";
+import NetInfo, {
+    NetInfoState,
+    NetInfoSubscription,
+} from "@react-native-community/netinfo";
+import * as StorageService from "./storage-service";
+import * as NotificationService from "./notification-service";
+import { DownloadStatus, DownloadTask } from "@/types/download-type";
 
-// --- Configuration ---
-const DOWNLOAD_DIR = FileSystem.documentDirectory + 'downloads/';
 const MAX_CONCURRENT_DOWNLOADS = 2;
 
-// --- Types ---
-export enum DownloadStatus {
-  PENDING = 'pending',
-  DOWNLOADING = 'downloading',
-  PAUSED = 'paused',
-  COMPLETED = 'completed',
-  FAILED = 'failed',
-  CANCELLED = 'cancelled',
-}
-
-export interface DownloadTask {
-  id: string;
-  m3u8Url: string;
-  title: string;
-  posterUrl?: string;
-  thumbUrl?: string;
-  filePath: string;
-  status: DownloadStatus;
-  ffmpegSessionId?: number;
-  error?: string;
-  createdAt: number;
-  
-  // Updated episode-related fields with specific properties instead of server object
-  episodeData?: {
-    movieId?: string;
-    movieName?: string;
-    episodeId?: string;
-    episodeName?: string;
-    episodeServerId?: string;
-    episodeServerFileName?: string;
-  };
-}
-
-// --- State ---
-let downloadQueue: { [id: string]: DownloadTask } = {};
 let activeDownloadCount = 0;
 let isInitialized = false;
-let progressUpdateInterval: NodeJS.Timeout | null = null;
-
-// --- Helper Functions ---
-
-const ensureDownloadDirExists = async () => {
-  const dirInfo = await FileSystem.getInfoAsync(DOWNLOAD_DIR);
-  if (!dirInfo.exists) {
-    console.log('Creating download directory:', DOWNLOAD_DIR);
-    await FileSystem.makeDirectoryAsync(DOWNLOAD_DIR, { intermediates: true });
-  }
-};
-
-const generateFilename = (title: string) => {
-  return title.replace(/[^a-zA-Z0-9-_.]/g, '_') + '.mp4';
-};
-
-const updateTaskState = (taskId: string, updates: Partial<DownloadTask>) => {
-  if (downloadQueue[taskId]) {
-    downloadQueue[taskId] = { ...downloadQueue[taskId], ...updates };
-    // TODO: Notify UI listeners about the update
-    console.log(`Task ${taskId} updated:`, downloadQueue[taskId].status);
-  }
-};
-
-// --- Notification Handling ---
-const NOTIFICATION_CHANNEL_ID = 'download_channel';
-
-const configureNotifications = async () => {
-  try {
-    // Request permissions with the right settings for each platform
-    const { status } = await Notifications.requestPermissionsAsync({
-      ios: {
-        allowAlert: true,
-        allowBadge: true,
-        allowSound: true,
-      },
-    });
-    
-    if (status !== 'granted') {
-      console.warn('Notification permissions not granted');
-      return false;
-    }
-
-    // Set up notification categories/actions for iOS
-    await Notifications.setNotificationCategoryAsync('download', [
-      {
-        identifier: 'cancel',
-        buttonTitle: 'Hủy tải xuống',
-        options: {
-          isDestructive: true,
-        },
-      },
-      {
-        identifier: 'view',
-        buttonTitle: 'Xem',
-      },
-    ]);
-
-    // Set up notification channel for Android
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync(NOTIFICATION_CHANNEL_ID, {
-        name: 'Thông báo tải xuống',
-        description: 'Thông báo về tình trạng tải xuống',
-        importance: Notifications.AndroidImportance.HIGH,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-      });
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Error configuring notifications:', error);
-    return false;
-  }
-};
-
-const sendProgressNotification = async (task: DownloadTask) => {
-  try {
-    // Check if we should show notification based on permission status
-    const { status } = await Notifications.getPermissionsAsync();
-    
-    // Skip notification if permissions aren't granted
-    if (status !== 'granted') {
-      console.log(`Skipping notification for task ${task.id} - no permissions`);
-      return false;
-    }
-
-    // Add an identifier prefix to avoid collisions
-    const notificationId = `download_progress_${task.id}`;
-    
-    // Cancel any existing notification for this task
-    await Notifications.dismissNotificationAsync(notificationId).catch(() => {});
-    
-    await Notifications.scheduleNotificationAsync({
-      identifier: notificationId,
-      content: {
-        title: `Đang tải xuống: ${task.title}`,
-        body: `Đang tải xuống...`,
-        data: { taskId: task.id, type: 'progress' },
-        sound: false,
-        priority: Notifications.AndroidNotificationPriority.LOW,
-        ...(Platform.OS === 'android' && { channelId: NOTIFICATION_CHANNEL_ID }),
-      },
-      trigger: null,
-    });
-    
-    return true;
-  } catch (error) {
-    console.error(`Error sending progress notification for task ${task.id}:`, error);
-    return false;
-  }
-};
-
-const sendCompletionNotification = async (task: DownloadTask, success: boolean) => {
-  try {
-    // Always show completion notifications even in background
-    
-    // Add an identifier prefix to avoid collisions
-    const notificationId = `download_complete_${task.id}`;
-    
-    // Clear any progress notifications
-    await Notifications.dismissNotificationAsync(`download_progress_${task.id}`).catch(() => {});
-    
-    const unknownErrorMsg = 'Đã xảy ra lỗi không xác định.';
-    
-    await Notifications.scheduleNotificationAsync({
-      identifier: notificationId,
-      content: {
-        title: success ? `Tải xuống hoàn tất: ${task.title}` : `Tải xuống thất bại: ${task.title}`,
-        body: success ? 'Nhấn để xem.' : task.error || unknownErrorMsg,
-        data: { 
-          taskId: task.id, 
-          filePath: task.filePath,
-          type: 'completion',
-          success
-        },
-        sound: true,
-        priority: Notifications.AndroidNotificationPriority.HIGH,
-        ...(Platform.OS === 'android' && { channelId: NOTIFICATION_CHANNEL_ID }),
-      },
-      trigger: null,
-    });
-    
-    return true;
-  } catch (error) {
-    console.error(`Error sending completion notification for task ${task.id}:`, error);
-    return false;
-  }
-};
-
-// --- Core Download Logic ---
+let netInfoUnsubscribe: NetInfoSubscription | null = null;
+let isConnected = true;
 
 const processNextDownload = () => {
-  if (activeDownloadCount >= MAX_CONCURRENT_DOWNLOADS) {
-    return;
-  }
+    if (activeDownloadCount >= MAX_CONCURRENT_DOWNLOADS || !isConnected) {
+        return;
+    }
 
-  const pendingTask = Object.values(downloadQueue).find(
-    (task) => task.status === DownloadStatus.PENDING
-  );
+    const waitingTasks = StorageService.getAllTasks().filter(
+        (task) =>
+            task.status === DownloadStatus.DOWNLOADING && !task.ffmpegSessionId
+    );
 
-  if (pendingTask) {
-    startFFmpegDownload(pendingTask.id);
-  }
+    if (waitingTasks.length > 0) {
+        startFFmpegDownload(waitingTasks[0].id);
+    }
+};
+
+const handleConnectivityChange = (state: NetInfoState) => {
+    const previousState = isConnected;
+    isConnected = state.isConnected === true;
+
+    if (previousState && !isConnected) {
+        const activeTasks = StorageService.getAllTasks().filter(
+            (task) =>
+                task.status === DownloadStatus.DOWNLOADING &&
+                task.ffmpegSessionId
+        );
+
+        activeTasks.forEach(async (task) => {
+            if (task.ffmpegSessionId) {
+                await FFmpegKit.cancel(task.ffmpegSessionId);
+
+                StorageService.updateTaskState(task.id, {
+                    status: DownloadStatus.CANCELLED,
+                    error: "Download cancelled due to internet connection loss",
+                    ffmpegSessionId: undefined,
+                });
+
+                const updatedTask = StorageService.getTask(task.id);
+                if (updatedTask) {
+                    await NotificationService.sendCancelledNotification(
+                        updatedTask
+                    );
+                }
+            }
+        });
+    }
 };
 
 const startFFmpegDownload = async (taskId: string) => {
-  const task = downloadQueue[taskId];
-  if (!task || task.status !== DownloadStatus.PENDING) {
-    console.warn(`Task ${taskId} not found or not pending.`);
-    processNextDownload();
-    return;
-  }
-
-  const netState = await NetInfo.fetch();
-  if (!netState.isConnected || netState.type !== 'wifi') {
-     console.warn(`Task ${taskId} starting without Wi-Fi.`);
-  }
-
-  activeDownloadCount++;
-  updateTaskState(taskId, { status: DownloadStatus.DOWNLOADING, error: undefined });
-  await sendProgressNotification(task);
-
-  const command = `-i "${task.m3u8Url}" -c copy -bsf:a aac_adtstoasc "${task.filePath}"`;
-
-  console.log(`Starting FFmpeg for task ${taskId}: ${command}`);
-
-  try {
-    const session = await FFmpegKit.executeAsync(
-      command,
-      async (session) => { // Completion callback
-        const returnCode = await session.getReturnCode();
-        const sessionId = session.getSessionId();
-        const completedTask = downloadQueue[taskId];
-
-        activeDownloadCount--;
-
-        if (ReturnCode.isSuccess(returnCode)) {
-          console.log(`FFmpeg task ${taskId} (Session ${sessionId}) completed successfully.`);
-          updateTaskState(taskId, { status: DownloadStatus.COMPLETED, ffmpegSessionId: undefined });
-          await sendCompletionNotification(completedTask, true);
-        } else if (ReturnCode.isCancel(returnCode)) {
-          console.log(`FFmpeg task ${taskId} (Session ${sessionId}) cancelled.`);
-          updateTaskState(taskId, { status: DownloadStatus.CANCELLED, ffmpegSessionId: undefined });
-          await Notifications.dismissNotificationAsync(taskId);
-        } else {
-          const errorLogs = await session.getLogsAsString();
-          console.error(`FFmpeg task ${taskId} (Session ${sessionId}) failed. Return code: ${returnCode}`);
-          console.error("FFmpeg Logs:", errorLogs);
-          const errorMsg = `FFmpeg failed with code ${returnCode}.`;
-          updateTaskState(taskId, { status: DownloadStatus.FAILED, error: errorMsg, ffmpegSessionId: undefined });
-          await sendCompletionNotification(completedTask, false);
-        }
+    const task = StorageService.getTask(taskId);
+    if (!task || task.status !== DownloadStatus.DOWNLOADING) {
+        console.warn(`Task ${taskId} not found or not in downloading state.`);
         processNextDownload();
-      },
-      (log) => { // Log callback
-        // console.log(`FFmpeg log for ${taskId}:`, log.getMessage());
-      },
-      (statistics) => { // Statistics callback (for progress)
-        // We're no longer tracking progress percentage
-      }
-    );
-
-    updateTaskState(taskId, { ffmpegSessionId: session.getSessionId() });
-
-  } catch (error) {
-    activeDownloadCount--;
-    console.error(`Error starting FFmpeg task ${taskId}:`, error);
-    updateTaskState(taskId, { status: DownloadStatus.FAILED, error: 'Failed to start FFmpeg process.' });
-    await sendCompletionNotification(task, false);
-    processNextDownload();
-  }
-};
-
-// Updated to only handle status updates without progress
-const scheduleProgressNotifications = () => {
-  if (progressUpdateInterval) clearInterval(progressUpdateInterval);
-
-  progressUpdateInterval = setInterval(async () => {
-    const downloadingTasks = Object.values(downloadQueue).filter(
-      task => task.status === DownloadStatus.DOWNLOADING
-    );
-    
-    if (downloadingTasks.length === 0) return;
-    
-    for (const task of downloadingTasks) {
-      try {
-        await sendProgressNotification(task);
-      } catch (error) {
-        console.error(`Failed to send progress notification for ${task.id}:`, error);
-      }
+        return;
     }
-  }, 3000); // Update notifications every 3 seconds to avoid too many updates
+
+    const netState = await NetInfo.fetch();
+    if (!netState.isConnected) {
+        console.warn(
+            `Cannot start download for task ${taskId}: No internet connection.`
+        );
+        StorageService.updateTaskState(taskId, {
+            status: DownloadStatus.CANCELLED,
+            error: "No internet connection available",
+        });
+
+        const cancelledTask = StorageService.getTask(taskId);
+        if (cancelledTask) {
+            await NotificationService.sendCancelledNotification(cancelledTask);
+        }
+
+        return;
+    }
+
+    activeDownloadCount++;
+
+    await NotificationService.sendStateNotification(task);
+
+    const command = `-i "${task.m3u8Url}" -c copy -bsf:a aac_adtstoasc "${task.filePath}"`;
+
+    try {
+        const session = await FFmpegKit.executeAsync(
+            command,
+            async (session) => {
+                const returnCode = await session.getReturnCode();
+                const sessionId = session.getSessionId();
+                const completedTask = StorageService.getTask(taskId);
+
+                activeDownloadCount--;
+
+                if (!completedTask) {
+                    console.error(`Task ${taskId} not found after completion.`);
+                    processNextDownload();
+                    return;
+                }
+
+                if (ReturnCode.isSuccess(returnCode)) {
+                    StorageService.updateTaskState(taskId, {
+                        status: DownloadStatus.COMPLETED,
+                        ffmpegSessionId: undefined,
+                    });
+                    await NotificationService.sendCompletionNotification(
+                        completedTask,
+                        true
+                    );
+                } else if (ReturnCode.isCancel(returnCode)) {
+                    StorageService.updateTaskState(taskId, {
+                        status: DownloadStatus.CANCELLED,
+                        ffmpegSessionId: undefined,
+                    });
+                    await NotificationService.sendCancelledNotification(
+                        completedTask
+                    );
+                } else {
+                    const errorLogs = await session.getLogsAsString();
+                    console.error(
+                        `FFmpeg task ${taskId} (Session ${sessionId}) failed. Return code: ${returnCode}`
+                    );
+                    const errorMsg = `FFmpeg failed with code ${returnCode}.`;
+
+                    StorageService.updateTaskState(taskId, {
+                        status: DownloadStatus.CANCELLED,
+                        error: errorMsg,
+                        ffmpegSessionId: undefined,
+                    });
+
+                    await NotificationService.sendCancelledNotification(
+                        completedTask
+                    );
+                }
+                processNextDownload();
+            },
+            (log) => {},
+            (statistics) => {}
+        );
+
+        StorageService.updateTaskState(taskId, {
+            ffmpegSessionId: session.getSessionId(),
+        });
+    } catch (error) {
+        activeDownloadCount--;
+        console.error(`Error starting FFmpeg task ${taskId}:`, error);
+
+        StorageService.updateTaskState(taskId, {
+            status: DownloadStatus.CANCELLED,
+            error: "Failed to start FFmpeg process.",
+        });
+
+        const cancelledTask = StorageService.getTask(taskId);
+        if (cancelledTask) {
+            await NotificationService.sendCancelledNotification(cancelledTask);
+        }
+
+        processNextDownload();
+    }
 };
 
 // --- Public API ---
 
+export const findTaskByEpisodeServerId = (
+    episodeServerId: string,
+    userId?: string
+): DownloadTask | null => {
+    const tasks = StorageService.getAllTasks();
+
+    if (userId) {
+        return (
+            tasks.find(
+                (task) =>
+                    task.episodeData?.episodeServerId === episodeServerId &&
+                    task.userId === userId
+            ) || null
+        );
+    }
+
+    return (
+        tasks.find(
+            (task) => task.episodeData?.episodeServerId === episodeServerId
+        ) || null
+    );
+};
+
 export const initializeDownloadService = async () => {
-  if (isInitialized) return;
-  console.log('Initializing Download Service...');
-  await ensureDownloadDirExists();
-  await configureNotifications();
-  scheduleProgressNotifications();
-  isInitialized = true;
-  console.log('Download Service Initialized.');
+    if (isInitialized) return;
+
+    await StorageService.ensureDownloadDirExists();
+    await StorageService.ensureDownloadJSONData();
+
+    await NotificationService.initializeNotifications();
+
+    netInfoUnsubscribe = NetInfo.addEventListener(handleConnectivityChange);
+
+    const netState = await NetInfo.fetch();
+    isConnected = netState.isConnected === true;
+
+    isInitialized = true;
 };
 
 export const startDownload = async (
-  id: string,
-  m3u8Url: string,
-  title: string,
-  posterUrl?: string,
-  episodeData?: DownloadTask['episodeData'],
-  thumbUrl?: string
+    id: string,
+    m3u8Url: string,
+    title: string,
+    userId: string,
+    episodeData?: Partial<DownloadTask["episodeData"]>,
+    thumbUrl?: string
 ): Promise<string | null> => {
-  if (!isInitialized) {
-    console.error('Download service not initialized.');
-    return null;
-  }
-  if (downloadQueue[id]) {
-    console.warn(`Download task ${id} already exists with status: ${downloadQueue[id].status}`);
-    return id;
-  }
+    if (!isInitialized) {
+        console.error("Download service not initialized.");
+        return null;
+    }
 
-  const filename = generateFilename(title);
-  const filePath = DOWNLOAD_DIR + filename;
+    if (!userId) {
+        console.error("Cannot start download: No user ID provided");
+        return null;
+    }
 
-  const fileInfo = await FileSystem.getInfoAsync(filePath);
-  if (fileInfo.exists) {
-      console.log(`File already exists for task ${id}: ${filePath}`);
-      downloadQueue[id] = {
-          id, m3u8Url, title, posterUrl, thumbUrl, filePath,
-          status: DownloadStatus.COMPLETED,
-          createdAt: Date.now(),
-          episodeData,
-      };
-      return id;
-  }
+    const taskId = episodeData?.episodeServerId || id;
 
-  const newTask: DownloadTask = {
-    id,
-    m3u8Url,
-    title,
-    posterUrl,
-    thumbUrl,
-    filePath,
-    status: DownloadStatus.PENDING,
-    createdAt: Date.now(),
-    episodeData,
-  };
+    let existingTask = StorageService.findTaskByEpisodeServerIdAndUserId(
+        episodeData?.episodeServerId || "",
+        userId
+    );
 
-  downloadQueue[id] = newTask;
-  console.log(`Task ${id} added to queue.`);
-  processNextDownload();
+    if (existingTask) {
+        return existingTask.id;
+    }
 
-  return id;
+    const filename = StorageService.generateFilename(title);
+    const filePath = StorageService.DOWNLOAD_DIR + filename;
+
+    const fileExists = await StorageService.checkFileExists(filePath);
+    if (fileExists) {
+        const completedTask: DownloadTask = {
+            id: taskId,
+            m3u8Url,
+            title,
+            thumbUrl,
+            filePath,
+            status: DownloadStatus.COMPLETED,
+            createdAt: Date.now(),
+            userId,
+            episodeData: {
+                movieId: episodeData?.movieId,
+                episodeName: episodeData?.episodeName,
+                episodeServerId: episodeData?.episodeServerId,
+                episodeServerFileName: episodeData?.episodeServerFileName,
+                episodeId: id,
+                episodeServerName: episodeData?.episodeServerName,
+            },
+        };
+        StorageService.saveTask(completedTask);
+        return taskId;
+    }
+
+    if (!isConnected) {
+        console.error("Cannot start download: No internet connection");
+        return null;
+    }
+
+    const newTask: DownloadTask = {
+        id: taskId,
+        m3u8Url,
+        title,
+        thumbUrl,
+        filePath,
+        status: DownloadStatus.DOWNLOADING,
+        createdAt: Date.now(),
+        userId,
+        episodeData: {
+            movieId: episodeData?.movieId,
+            episodeName: episodeData?.episodeName,
+            episodeServerId: episodeData?.episodeServerId,
+            episodeServerFileName: episodeData?.episodeServerFileName,
+            episodeServerName: episodeData?.episodeServerName,
+        },
+    };
+
+    StorageService.saveTask(newTask);
+
+    await NotificationService.sendStateNotification(newTask);
+
+    processNextDownload();
+
+    return taskId;
 };
 
 export const cancelDownload = async (taskId: string) => {
-  const task = downloadQueue[taskId];
-  if (!task) return;
+    const task = StorageService.getTask(taskId);
+    if (!task) return;
 
-  if (task.ffmpegSessionId) {
-    console.log(`Cancelling FFmpeg session ${task.ffmpegSessionId} for task ${taskId}`);
-    await FFmpegKit.cancel(task.ffmpegSessionId);
-  } else if (task.status === DownloadStatus.PENDING) {
-    updateTaskState(taskId, { status: DownloadStatus.CANCELLED });
-    await Notifications.dismissNotificationAsync(taskId);
-  }
+    if (task.ffmpegSessionId) {
+        await FFmpegKit.cancel(task.ffmpegSessionId);
+    } else if (task.status === DownloadStatus.DOWNLOADING) {
+        StorageService.updateTaskState(taskId, {
+            status: DownloadStatus.CANCELLED,
+        });
 
-  try {
-    await FileSystem.deleteAsync(task.filePath, { idempotent: true });
-    console.log(`Deleted partial file for cancelled task ${taskId}: ${task.filePath}`);
-  } catch (error) {
-    console.warn(`Could not delete partial file for ${taskId}:`, error);
-  }
+        const updatedTask = StorageService.getTask(taskId);
+        if (updatedTask) {
+            await NotificationService.sendCancelledNotification(updatedTask);
+        }
+    }
+
+    try {
+        await StorageService.deleteFile(task.filePath);
+    } catch (error) {
+        console.warn(`Could not delete partial file for ${taskId}:`, error);
+    }
 };
 
 export const getDownloadStatus = (taskId: string): DownloadTask | null => {
-  return downloadQueue[taskId] || null;
+    return StorageService.getTask(taskId);
 };
 
 export const getAllDownloads = (): DownloadTask[] => {
-  return Object.values(downloadQueue);
+    return StorageService.getAllTasks();
 };
 
-export const deleteDownloadedFile = async (taskId: string): Promise<boolean> => {
-    const task = downloadQueue[taskId];
+export const getAllDownloadsForUser = (userId: string): DownloadTask[] => {
+    return StorageService.getTasksByUserId(userId);
+};
+
+export const deleteDownloadedFile = async (
+    taskId: string
+): Promise<boolean> => {
+    const task = StorageService.getTask(taskId);
     if (!task) {
         console.error(`Task ${taskId} not found for deletion.`);
         return false;
     }
 
     try {
-        await FileSystem.deleteAsync(task.filePath, { idempotent: true });
-        console.log(`Deleted file for task ${taskId}: ${task.filePath}`);
-        delete downloadQueue[taskId];
-        return true;
+        const deleted = await StorageService.deleteFile(task.filePath);
+        if (deleted) {
+            StorageService.removeTask(taskId);
+
+            await NotificationService.dismissNotification(taskId);
+        }
+        return deleted;
     } catch (error) {
         console.error(`Failed to delete file for ${taskId}:`, error);
         return false;
     }
 };
 
-// --- Cleanup ---
 export const cleanupDownloadService = () => {
-    if (progressUpdateInterval) {
-        clearInterval(progressUpdateInterval);
-        progressUpdateInterval = null;
-    }
-    Object.values(downloadQueue).forEach(task => {
-        if (task.status === DownloadStatus.DOWNLOADING && task.ffmpegSessionId) {
+    StorageService.getAllTasks().forEach((task) => {
+        if (
+            task.status === DownloadStatus.DOWNLOADING &&
+            task.ffmpegSessionId
+        ) {
             FFmpegKit.cancel(task.ffmpegSessionId);
         }
     });
+
+    if (netInfoUnsubscribe) {
+        netInfoUnsubscribe();
+        netInfoUnsubscribe = null;
+    }
+
+    NotificationService.cleanupNotifications();
+
     isInitialized = false;
-    console.log('Download Service Cleaned Up.');
 };

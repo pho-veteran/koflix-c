@@ -1,15 +1,13 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   StatusBar,
   ActivityIndicator,
-  StyleSheet,
   ScrollView,
-  Platform
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import * as ScreenOrientation from 'expo-screen-orientation';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useIsFocused } from "@react-navigation/native";
 import { getMovieDetail } from "@/api/movies";
 import { VStack } from "@/components/ui/vstack";
 import { Episode, MovieDetail, EpisodeServer } from "@/types/movie-type";
@@ -17,6 +15,7 @@ import EpisodeSelectorModal from "@/components/modals/episode-selector-modal";
 import { useAuth } from "@/providers/auth-context";
 import { NETFLIX_RED } from "@/constants/ui-constants";
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { useVideoPlayer } from '@/hooks/use-video-player';
 
 // Components
 import VideoPlayer from "./components/video-player";
@@ -30,43 +29,63 @@ export default function EpisodePlayerScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-
+  const isFocused = useIsFocused();
+  
   const [movie, setMovie] = useState<MovieDetail | null>(null);
   const [currentEpisode, setCurrentEpisode] = useState<Episode | null>(null);
   const [selectedServer, setSelectedServer] = useState<EpisodeServer | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isVideoLoading, setIsVideoLoading] = useState(true);
-  const [videoError, setVideoError] = useState("");
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [showControls, setShowControls] = useState(false);
   const [isEpisodeModalOpen, setIsEpisodeModalOpen] = useState(false);
   const [previousPlayingState, setPreviousPlayingState] = useState(true);
+  const [playbackRate, setPlaybackRate] = useState(1.0); // Add playback rate state
+
+  // Initialize the video player hook
+  const videoPlayerHook = useVideoPlayer({
+    onGoBack: async () => {
+      router.back();
+    }
+  });
+
+  const {
+    isFullscreen,
+    setIsFullscreen,
+    isPlaying, 
+    setIsPlaying,
+    showControls,
+    setShowControls,
+    setIsLoading: setIsVideoLoading,
+    error: videoError,
+    setError: setVideoError,
+    isLoading: isVideoLoading
+  } = videoPlayerHook;
 
   // Pause video when episode modal is opened
   useEffect(() => {
     if (isEpisodeModalOpen) {
+      // Save the current playing state *before* pausing
       setPreviousPlayingState(isPlaying);
+      // Always pause when the modal opens
       setIsPlaying(false);
-    } else if (!isEpisodeModalOpen && previousPlayingState) {
-      setIsPlaying(true);
     }
-  }, [isEpisodeModalOpen]);
+  }, [isEpisodeModalOpen, isPlaying, setIsPlaying]); // Keep dependencies, but logic changed
 
-  // Add this effect to manage control visibility based on loading state
+  // Hide control when loading
   useEffect(() => {
-    // When video starts loading, hide the controls
     if (isVideoLoading) {
       setShowControls(false);
     }
-  }, [isVideoLoading]);
+  }, [isVideoLoading, setShowControls]);
 
   // Load movie and episode data
   useEffect(() => {
+    let isMounted = true;
+    
     async function fetchData() {
-      if (!id) return;
+      if (!id || !isFocused) return;
 
       try {
         const movieData = await getMovieDetail(id as string, user?.id);
+        if (!isMounted) return;
+        
         setMovie(movieData);
 
         if (movieData.episodes && movieData.episodes.length > 0) {
@@ -84,68 +103,19 @@ export default function EpisodePlayerScreen() {
       }
     }
 
-    fetchData();
-
-    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-
-    return () => {
-      ScreenOrientation.unlockAsync();
-    };
-  }, [id, episodeId]);
-
-  // Handle video orientation changes
-  const toggleFullscreen = async () => {
-    try {
-      if (isFullscreen) {
-        // Go back to portrait
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-        setIsFullscreen(false);
-      } else {
-        // Go to landscape
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-        setIsFullscreen(true);
-      }
-    } catch (error) {
-      console.error("Error changing orientation:", error);
+    if (isFocused) {
+      fetchData();
     }
-  };
-
-  // Listen to orientation changes
-  useEffect(() => {
-    const subscription = ScreenOrientation.addOrientationChangeListener(({ orientationInfo }) => {
-      const isLandscapeOrientation =
-        orientationInfo.orientation === ScreenOrientation.Orientation.LANDSCAPE_LEFT ||
-        orientationInfo.orientation === ScreenOrientation.Orientation.LANDSCAPE_RIGHT;
-
-      setIsFullscreen(isLandscapeOrientation);
-
-      // Hide controls after orientation change
-      setShowControls(true);
-    });
 
     return () => {
-      ScreenOrientation.removeOrientationChangeListener(subscription);
+      isMounted = false;
     };
-  }, []);
+  }, [id, episodeId, isFocused, user?.id]);
 
-  // Handle touch on video to show/hide controls
-  const handleVideoPress = () => {
-    setShowControls(prevShowControls => !prevShowControls);
-  };
-
-  // Toggle play/pause
-  const handleTogglePlay = () => {
-    setIsPlaying(!isPlaying);
-    setShowControls(true);
-  };
-
-  // Update the video loaded handler in your VideoPlayer component to show controls
   const handleVideoLoaded = () => {
     setIsVideoLoading(false);
-    // Show controls briefly when video loads, then hide them after a delay
     setShowControls(true);
     
-    // Optional: Auto-hide controls after video loads
     const timer = setTimeout(() => {
       setShowControls(false);
     }, 3000);
@@ -153,7 +123,6 @@ export default function EpisodePlayerScreen() {
     return () => clearTimeout(timer);
   };
 
-  // Select episode handler
   const handleEpisodeSelect = (episode: Episode) => {
     if (id && episode.id !== episodeId) {
       router.replace(`/movie/${id}/episode/${episode.id}`);
@@ -161,14 +130,12 @@ export default function EpisodePlayerScreen() {
     setIsEpisodeModalOpen(false);
   };
 
-  // Select server handler
   const handleServerSelect = (server: EpisodeServer) => {
     setSelectedServer(server);
     setIsVideoLoading(true);
     setVideoError("");
   };
 
-  // Navigation between episodes
   const navigateToEpisode = (direction: 'prev' | 'next') => {
     if (!movie?.episodes?.length || !currentEpisode) return;
 
@@ -182,17 +149,15 @@ export default function EpisodePlayerScreen() {
       targetIndex = currentIndex < movie.episodes.length - 1 ? currentIndex + 1 : currentIndex;
     }
 
-    // If we can navigate, go to the new episode
     if (targetIndex !== currentIndex) {
       handleEpisodeSelect(movie.episodes[targetIndex]);
     }
   };
 
-  // Go back handler
-  const handleGoBack = async () => {
-    await ScreenOrientation.unlockAsync();
-    router.back();
-  };
+  // If not focused, don't render anything (unmount component)
+  if (!isFocused) {
+    return null;
+  }
 
   if (!movie || !currentEpisode) {
     return (
@@ -221,17 +186,8 @@ export default function EpisodePlayerScreen() {
       <VideoPlayer
         selectedServer={selectedServer}
         isFullscreen={isFullscreen}
-        isVideoLoading={isVideoLoading}
-        isPlaying={isPlaying}
-        videoError={videoError}
-        showControls={showControls}
-        onVideoPress={handleVideoPress}
-        onTogglePlay={handleTogglePlay}
-        onToggleFullscreen={toggleFullscreen}
-        onGoBack={handleGoBack}
+        videoPlayerHook={videoPlayerHook}
         onOpenEpisodeModal={() => setIsEpisodeModalOpen(true)}
-        setIsVideoLoading={setIsVideoLoading}
-        setVideoError={setVideoError}
         onVideoLoaded={handleVideoLoaded}
         movieId={movie.id}
         movieName={movie.name}
@@ -239,6 +195,8 @@ export default function EpisodePlayerScreen() {
         episodeName={currentEpisode.name}
         posterUrl={movie.poster_url}
         thumbUrl={movie.thumb_url}
+        playbackRate={playbackRate}
+        onChangePlaybackRate={setPlaybackRate}
       />
 
       {/* Content below video - only visible in portrait */}
@@ -278,17 +236,19 @@ export default function EpisodePlayerScreen() {
       )}
 
       {/* Episode Selector Modal */}
-      <EpisodeSelectorModal
-        isOpen={isEpisodeModalOpen}
-        onClose={() => setIsEpisodeModalOpen(false)}
-        episodes={movie.episodes}
-        movieName={movie.name}
-        episodeCurrent={movie.episode_current}
-        episodeTotal={movie.episode_total}
-        status={movie.status}
-        onSelectEpisode={handleEpisodeSelect}
-        isFullscreen={isFullscreen}
-      />
+      {isFocused && (
+        <EpisodeSelectorModal
+          isOpen={isEpisodeModalOpen}
+          onClose={() => setIsEpisodeModalOpen(false)}
+          episodes={movie.episodes}
+          movieName={movie.name}
+          episodeCurrent={movie.episode_current}
+          episodeTotal={movie.episode_total}
+          status={movie.status}
+          onSelectEpisode={handleEpisodeSelect}
+          isFullscreen={isFullscreen}
+        />
+      )}
     </View>
   );
 }

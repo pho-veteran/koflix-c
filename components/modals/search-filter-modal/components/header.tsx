@@ -12,7 +12,7 @@ export default function Header({ onClose }: HeaderProps) {
     <View className="px-5 pt-5 pb-3">
       <View className="flex-row justify-between items-center mb-4">
         <Text className="text-2xl font-bold text-primary-500">
-          Bộ lọc tìm kiếm
+          Lọc tìm kiếm
         </Text>
         <TouchableOpacity 
           onPress={onClose}

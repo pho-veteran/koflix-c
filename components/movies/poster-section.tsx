@@ -3,7 +3,7 @@ import { FlatList, View, TouchableOpacity } from "react-native";
 import { MovieBase } from "@/types/movie-type";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
-import PosterCard from "./PosterCard";
+import PosterCard from "./poster-card"; 
 import { ArrowRight } from "lucide-react-native";
 import { HStack } from "@/components/ui/hstack";
 

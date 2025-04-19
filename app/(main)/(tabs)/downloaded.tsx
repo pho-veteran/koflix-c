@@ -1,496 +1,347 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Alert } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
-import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import * as FileSystem from 'expo-file-system';
-import Video from 'react-native-video';
+import React, { useEffect, useState, useCallback } from "react";
+import { View, RefreshControl, Alert, ScrollView } from "react-native";
+import { StatusBar } from "expo-status-bar";
+import { Text } from "@/components/ui/text";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useIsFocused } from "@react-navigation/native";
+import { useDownload } from "@/providers/download-context";
+import { useAuth } from "@/providers/auth-context";
+import * as DownloadService from "@/services/download-service";
+import * as StorageService from "@/services/storage-service";
+import { DownloadStatus, DownloadTask } from "@/types/download-type";
+import { router } from "expo-router";
+import { NETFLIX_RED, LOADING, HEADER_HEIGHT } from "@/constants/ui-constants";
+import Header from "@/components/layout/home-header";
+import ConfirmationModal, { ConfirmationType } from "@/components/modals/confirmation-modal";
 
-import { Text } from '@/components/ui/text';
-import { VStack } from '@/components/ui/vstack';
-import { HStack } from '@/components/ui/hstack';
-import { NETFLIX_RED } from '@/constants/ui-constants';
-import * as DownloadService from '@/services/download-service';
-import { DownloadStatus, DownloadTask } from '@/services/download-service';
-import { useDownload } from '@/providers/download-context';
+// Import custom components
+import DownloadGroup from "@/components/downloaded/downloaded-group";
+import EmptyState from "@/components/downloaded/empty-state";
+import ErrorState from "@/components/downloaded/error-state";
+import LoadingState from "@/components/downloaded/loading-state";
 
 export default function DownloadedPage() {
-    const [downloads, setDownloads] = useState<DownloadTask[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [refreshing, setRefreshing] = useState(false);
-    const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
+  const isFocused = useIsFocused();
+  const { isInitialized, refreshDownloads, downloads: allDownloads } = useDownload();
+  const { firebaseUser } = useAuth();
+  const userId = firebaseUser?.uid || '';
 
-    // Use the download context instead of initializing the service
-    const { isInitialized, refreshDownloads } = useDownload();
+  const [downloads, setDownloads] = useState<DownloadTask[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [groupedCompletedDownloads, setGroupedCompletedDownloads] = useState<{ [key: string]: DownloadTask[] }>({});
+  const [error, setError] = useState("");
 
-    const insets = useSafeAreaInsets();
-    const router = useRouter();
-    const { width } = Dimensions.get('window');
-    const POSTER_WIDTH = width * 0.4;
-    const POSTER_HEIGHT = POSTER_WIDTH * 1.5;
+  // Separated download lists by status
+  const [downloadingTasks, setDownloadingTasks] = useState<DownloadTask[]>([]);
+  const [cancelledTasks, setCancelledTasks] = useState<DownloadTask[]>([]);
 
-    // Load downloads when the component mounts or when initialized changes
-    useEffect(() => {
-        if (isInitialized) {
-            loadDownloads();
-            setIsLoading(false);
-        }
-    }, [isInitialized]);
+  // Download confirmation modal state
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+  const [downloadConfirmationType, setDownloadConfirmationType] = useState<ConfirmationType>('delete');
+  const [downloadTitle, setDownloadTitle] = useState('');
+  const [isDownloadLoading, setIsDownloadLoading] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<DownloadTask | null>(null);
 
-    // Set up polling for updates
-    useEffect(() => {
-        const interval = setInterval(() => {
-            if (!refreshing && isInitialized) loadDownloads(false);
-        }, 2000);
+  const groupDownloadsByMovie = useCallback((tasks: DownloadTask[]) => {
+    const grouped: { [key: string]: DownloadTask[] } = {};
 
-        return () => clearInterval(interval);
-    }, [refreshing, isInitialized]);
+    tasks.forEach(task => {
+      const movieId = task.episodeData?.movieId || `unknown-${task.title.split(" - ")[0]}`;
 
-    const loadDownloads = async (showLoading = true) => {
-        if (showLoading) setRefreshing(true);
+      if (!grouped[movieId]) {
+        grouped[movieId] = [];
+      }
+      grouped[movieId].push(task);
+    });
 
-        try {
-            const allDownloads = DownloadService.getAllDownloads();
+    return grouped;
+  }, []);
 
-            // Sort: Downloading first, then completed, then others
-            const sortedDownloads = allDownloads.sort((a, b) => {
-                if (a.status === DownloadStatus.DOWNLOADING && b.status !== DownloadStatus.DOWNLOADING) return -1;
-                if (a.status !== DownloadStatus.DOWNLOADING && b.status === DownloadStatus.DOWNLOADING) return 1;
-                if (a.status === DownloadStatus.COMPLETED && b.status !== DownloadStatus.COMPLETED) return -1;
-                if (a.status !== DownloadStatus.COMPLETED && b.status === DownloadStatus.COMPLETED) return 1;
-                return b.createdAt - a.createdAt; // Most recent first
-            });
+  const loadDownloads = useCallback(async (showRefreshing = false) => {
+    try {
+      if (showRefreshing) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
 
-            setDownloads(sortedDownloads);
-            setError(null);
-        } catch (err) {
-            console.error('Error loading downloads:', err);
-            setError('Không thể tải danh sách video đã tải xuống.');
-        } finally {
-            setRefreshing(false);
-        }
-    };
+      if (!isInitialized) {
+        await refreshDownloads();
+      }
 
-    const handleRefresh = async () => {
-        // Use the context's refresh method to ensure service is initialized
-        if (!isInitialized) {
-            await refreshDownloads();
-        }
-        loadDownloads();
-    };
+      // Filter downloads by current user
+      const userDownloads = userId 
+        ? allDownloads.filter(task => task.userId === userId)
+        : [];
 
-    const handlePlayVideo = (downloadTask: DownloadTask) => {
-        // For completed downloads, navigate to a video player screen
-        if (downloadTask.status === DownloadStatus.COMPLETED) {
-            const fileInfo = {
-                uri: downloadTask.filePath,
-                title: downloadTask.title,
-                id: downloadTask.id
-            };
+      // Sort by creation date (newest first)
+      userDownloads.sort((a, b) => b.createdAt - a.createdAt);
 
-            // Check if file exists before trying to play
-            FileSystem.getInfoAsync(downloadTask.filePath).then(info => {
-                if (info.exists) {
-                    // Option 1: Play in the current list with a mini player
-                    setPlayingVideoId(downloadTask.id);
+      // Store all downloads
+      setDownloads(userDownloads);
 
-                    // Option 2: Navigate to a full player screen
-                    // router.push({
-                    //   pathname: `/player`,
-                    //   params: { uri: downloadTask.filePath, title: downloadTask.title }
-                    // });
-                } else {
-                    Alert.alert(
-                        'Lỗi tập tin',
-                        'Không thể tìm thấy tệp video. Tệp có thể đã bị xóa.',
-                        [
-                            {
-                                text: 'Xóa khỏi danh sách',
-                                onPress: () => handleDeleteDownload(downloadTask)
-                            },
-                            { text: 'Đóng' }
-                        ]
-                    );
-                }
-            });
-        }
-    };
+      // Filter by status
+      const downloading = userDownloads.filter(task => task.status === DownloadStatus.DOWNLOADING);
+      const cancelled = userDownloads.filter(task => task.status === DownloadStatus.CANCELLED);
+      const completed = userDownloads.filter(task => task.status === DownloadStatus.COMPLETED);
 
-    // Navigate to movie detail page
-    const handleOpenMovieDetail = (downloadTask: DownloadTask) => {
-        if (downloadTask.episodeData?.movieId) {
-            router.push(`/movie/${downloadTask.episodeData.movieId}`);
-        }
-    };
+      setDownloadingTasks(downloading);
+      setCancelledTasks(cancelled);
 
-    const handleDeleteDownload = (downloadTask: DownloadTask) => {
+      // Group all download types by movieId
+      setGroupedCompletedDownloads(groupDownloadsByMovie(completed));
+
+      setError("");
+    } catch (err) {
+      console.error("Error loading downloads:", err);
+      setError("Không thể tải danh sách video đã tải. Vui lòng thử lại sau.");
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [isInitialized, refreshDownloads, allDownloads, userId, groupDownloadsByMovie]);
+
+  useEffect(() => {
+    if (isFocused) {
+      loadDownloads();
+    }
+  }, [isFocused, loadDownloads, userId]);
+
+  const handleRefresh = () => {
+    loadDownloads(true);
+  };
+
+  const handleDeleteDownload = (task: DownloadTask) => {
+    setSelectedTask(task);
+    setDownloadTitle(task.title);
+    setDownloadConfirmationType('delete');
+    setIsDownloadModalOpen(true);
+  };
+
+  const handlePlayVideo = (task: DownloadTask) => {
+    // Check if the file actually exists
+    StorageService.checkFileExists(task.filePath).then(exists => {
+      if (exists) {
+        // Navigate to the offline player with the task ID
+        router.push(`/downloaded-player/${task.id}`);
+      } else {
+        // If file doesn't exist, show error and offer to download again
         Alert.alert(
-            'Xóa video',
-            `Bạn có chắc chắn muốn xóa "${downloadTask.title}"?`,
-            [
-                { text: 'Hủy', style: 'cancel' },
-                {
-                    text: 'Xóa',
-                    style: 'destructive',
-                    onPress: async () => {
-                        setRefreshing(true);
-                        try {
-                            if (downloadTask.status === DownloadStatus.DOWNLOADING ||
-                                downloadTask.status === DownloadStatus.PENDING) {
-                                await DownloadService.cancelDownload(downloadTask.id);
-                            } else {
-                                await DownloadService.deleteDownloadedFile(downloadTask.id);
-                            }
-
-                            // If this was the playing video, stop playback
-                            if (playingVideoId === downloadTask.id) {
-                                setPlayingVideoId(null);
-                            }
-
-                            // Refresh the list
-                            await loadDownloads(false);
-                        } catch (err) {
-                            console.error('Error deleting download:', err);
-                            Alert.alert('Lỗi', 'Không thể xóa video đã tải xuống.');
-                        } finally {
-                            setRefreshing(false);
-                        }
-                    }
-                }
-            ]
+          "Không tìm thấy tệp video",
+          "Tệp video có thể đã bị xóa hoặc di chuyển. Bạn có muốn tải lại video này không?",
+          [
+            { text: "Không", style: "cancel" },
+            { 
+              text: "Tải lại", 
+              onPress: () => handleRetryDownload(task) 
+            }
+          ]
         );
-    };
+      }
+    });
+  };
 
-    const renderDownloadItem = ({ item }: { item: DownloadTask }) => {
-        const isPlaying = playingVideoId === item.id;
-        const hasEpisodeData = !!item.episodeData;
+  const handleCancelDownload = (task: DownloadTask) => {
+    setSelectedTask(task);
+    setDownloadTitle(task.title);
+    setDownloadConfirmationType('cancel');
+    setIsDownloadModalOpen(true);
+  };
 
-        return (
-            <View style={styles.downloadItem}>
-                <TouchableOpacity
-                    style={styles.downloadCard}
-                    onPress={() => handlePlayVideo(item)}
-                    disabled={item.status !== DownloadStatus.COMPLETED}
-                >
-                    <View style={styles.posterContainer}>
-                        {item.posterUrl ? (
-                            <Image
-                                source={{ uri: item.posterUrl }}
-                                style={{ width: POSTER_WIDTH, height: POSTER_HEIGHT }}
-                                contentFit="cover"
-                                transition={300}
-                            />
-                        ) : (
-                            <View
-                                style={[
-                                    styles.posterPlaceholder,
-                                    { width: POSTER_WIDTH, height: POSTER_HEIGHT }
-                                ]}
-                            >
-                                <Ionicons name="videocam" size={32} color="#555" />
-                            </View>
-                        )}
+  const handleRetryDownload = (task: DownloadTask) => {
+    setSelectedTask(task);
+    setDownloadTitle(task.title);
+    setDownloadConfirmationType('retry');
+    setIsDownloadModalOpen(true);
+  };
 
-                        {/* Status overlay */}
-                        {item.status === DownloadStatus.DOWNLOADING && (
-                            <View style={styles.statusOverlay}>
-                                <ActivityIndicator color={NETFLIX_RED} size="small" />
-                                <Text style={styles.statusText}>
-                                    Đang tải xuống...
-                                </Text>
-                            </View>
-                        )}
+  const handleConfirmAction = async () => {
+    if (!selectedTask) return;
 
-                        {item.status === DownloadStatus.PENDING && (
-                            <View style={styles.statusOverlay}>
-                                <Text style={styles.statusText}>Đang chờ</Text>
-                            </View>
-                        )}
+    setIsDownloadLoading(true);
+    try {
+      switch (downloadConfirmationType) {
+        case 'delete':
+          const success = await DownloadService.deleteDownloadedFile(selectedTask.id);
+          if (!success) {
+            Alert.alert("Lỗi", "Không thể xóa video. Vui lòng thử lại sau.");
+          }
+          break;
 
-                        {item.status === DownloadStatus.FAILED && (
-                            <View style={[styles.statusOverlay, styles.errorOverlay]}>
-                                <Ionicons name="alert-circle" size={24} color="#ff4d4d" />
-                                <Text style={styles.errorText}>Lỗi</Text>
-                            </View>
-                        )}
+        case 'cancel':
+          await DownloadService.cancelDownload(selectedTask.id);
+          break;
+          
+        case 'retry':
+          await DownloadService.deleteDownloadedFile(selectedTask.id);
 
-                        {item.status === DownloadStatus.COMPLETED && (
-                            <View style={styles.playButton}>
-                                <Ionicons name="play" size={28} color="#fff" />
-                            </View>
-                        )}
-                    </View>
+          if (selectedTask.m3u8Url && selectedTask.episodeData && userId) {
+            await DownloadService.startDownload(
+              selectedTask.episodeData.episodeId || selectedTask.id,
+              selectedTask.m3u8Url,
+              selectedTask.title,
+              userId, // Pass the userId
+              {
+                movieId: selectedTask.episodeData.movieId,
+                episodeName: selectedTask.episodeData.episodeName,
+                episodeId: selectedTask.episodeData.episodeId,
+                episodeServerId: selectedTask.episodeData.episodeServerId,
+                episodeServerFileName: selectedTask.episodeData.episodeServerFileName,
+                episodeServerName: selectedTask.episodeData.episodeServerName
+              },
+              selectedTask.thumbUrl
+            );
+          }
+          break;
+      }
 
-                    <VStack className="ml-3 flex-1 justify-between">
-                        <Text numberOfLines={2} className="text-typography-800 font-semibold text-base mb-1">
-                            {item.title}
-                        </Text>
-
-                        {/* Show movie info if available */}
-                        {hasEpisodeData && item.episodeData?.movieName && (
-                            <TouchableOpacity 
-                                onPress={() => handleOpenMovieDetail(item)}
-                                disabled={!item.episodeData?.movieId}
-                            >
-                                <Text numberOfLines={1} className="text-primary-400 text-xs">
-                                    {item.episodeData.movieName}
-                                </Text>
-                            </TouchableOpacity>
-                        )}
-
-                        <HStack space="sm">
-                            {item.status === DownloadStatus.COMPLETED && (
-                                <Text className="text-typography-600 text-xs">
-                                    Đã tải xuống
-                                </Text>
-                            )}
-
-                            {item.status === DownloadStatus.DOWNLOADING && (
-                                <Text className="text-primary-500 text-xs">
-                                    Đang tải xuống...
-                                </Text>
-                            )}
-
-                            {item.status === DownloadStatus.PENDING && (
-                                <Text className="text-amber-500 text-xs">
-                                    Đang chờ
-                                </Text>
-                            )}
-
-                            {item.status === DownloadStatus.FAILED && (
-                                <Text className="text-error-500 text-xs">
-                                    Tải thất bại
-                                </Text>
-                            )}
-
-                            {item.status === DownloadStatus.CANCELLED && (
-                                <Text className="text-typography-600 text-xs">
-                                    Đã hủy
-                                </Text>
-                            )}
-                        </HStack>
-
-                        <TouchableOpacity
-                            onPress={() => handleDeleteDownload(item)}
-                            style={styles.deleteButton}
-                        >
-                            <Ionicons
-                                name={item.status === DownloadStatus.DOWNLOADING ? "stop-circle-outline" : "trash-outline"}
-                                size={20}
-                                color="#ff4d4d"
-                            />
-                            <Text className="text-error-500 text-xs ml-1">
-                                {item.status === DownloadStatus.DOWNLOADING ? "Dừng" : "Xóa"}
-                            </Text>
-                        </TouchableOpacity>
-                    </VStack>
-                </TouchableOpacity>
-
-                {/* Mini player when a video is selected for playback */}
-                {isPlaying && (
-                    <View style={styles.miniPlayer}>
-                        <Video
-                            source={{ uri: item.filePath }}
-                            style={{ width: '100%', height: 200 }}
-                            resizeMode="contain"
-                            controls={true}
-                            onError={(error) => {
-                                console.error('Video playback error:', error);
-                                Alert.alert(
-                                    'Lỗi phát video',
-                                    'Không thể phát video này. Tệp có thể bị lỗi.',
-                                    [{ text: 'Đóng', onPress: () => setPlayingVideoId(null) }]
-                                );
-                            }}
-                        />
-                        <TouchableOpacity
-                            style={styles.closePlayerButton}
-                            onPress={() => setPlayingVideoId(null)}
-                        >
-                            <Ionicons name="close-circle" size={28} color="#fff" />
-                        </TouchableOpacity>
-                    </View>
-                )}
-            </View>
-        );
-    };
-
-    // Empty state for no downloads
-    const renderEmptyList = () => (
-        <View style={styles.emptyContainer}>
-            <Ionicons name="cloud-download-outline" size={64} color="#555" />
-            <Text className="text-typography-600 text-lg mt-4 mb-2 text-center">
-                Chưa có video nào được tải xuống
-            </Text>
-            <Text className="text-typography-500 text-sm text-center">
-                Các video bạn tải xuống sẽ xuất hiện ở đây
-            </Text>
-        </View>
-    );
-
-    if (isLoading) {
-        return (
-            <View style={styles.container}>
-                <StatusBar style="light" />
-                <Stack.Screen options={{ title: 'Đã tải xuống' }} />
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={NETFLIX_RED} />
-                    <Text className="text-typography-800 mt-4">Đang tải...</Text>
-                </View>
-            </View>
-        );
+    } catch (error) {
+      console.error(`Error during ${downloadConfirmationType} action:`, error);
+      Alert.alert("Lỗi", `Không thể thực hiện thao tác. Vui lòng thử lại sau.`);
+    } finally {
+      setIsDownloadLoading(false);
+      setIsDownloadModalOpen(false);
     }
+  };
 
-    if (error) {
-        return (
-            <View style={styles.container}>
-                <StatusBar style="light" />
-                <Stack.Screen options={{ title: 'Đã tải xuống' }} />
-                <View style={styles.errorContainer}>
-                    <Ionicons name="alert-circle-outline" size={48} color="#ff4d4d" />
-                    <Text className="text-error-500 text-lg font-semibold mt-4 mb-2">{error}</Text>
-                    <TouchableOpacity
-                        className="bg-primary-500 rounded-md px-4 py-2 mt-4"
-                        onPress={() => loadDownloads(true)}
-                    >
-                        <Text className="text-white font-medium">Thử lại</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-        );
-    }
+  if (isLoading) {
+    return <LoadingState />;
+  }
 
+  if (error) {
+    return <ErrorState error={error} onRetry={() => loadDownloads()} />;
+  }
+
+  // Show login prompt if no user is logged in
+  if (!userId) {
     return (
-        <View style={styles.container}>
-            <StatusBar style="light" />
-            <Stack.Screen options={{
-                title: 'Đã tải xuống',
-                headerStyle: { backgroundColor: '#000' },
-                headerTintColor: '#fff'
-            }} />
-
-            <FlatList
-                data={downloads}
-                renderItem={renderDownloadItem}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={[
-                    styles.listContent,
-                    downloads.length === 0 && styles.emptyListContent
-                ]}
-                ListEmptyComponent={renderEmptyList}
-                onRefresh={handleRefresh}
-                refreshing={refreshing}
-                style={styles.list}
-            />
+      <View className="flex-1 bg-black">
+        <Header />
+        <View className="flex-1 justify-center items-center p-6" 
+              style={{ paddingTop: HEADER_HEIGHT + insets.top }}>
+          <Text className="text-typography-800 text-center text-base mb-4">
+            Vui lòng đăng nhập để xem danh sách video đã tải xuống
+          </Text>
         </View>
+      </View>
     );
-}
+  }
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#000',
-    },
-    list: {
-        flex: 1,
-    },
-    listContent: {
-        padding: 16,
-    },
-    emptyListContent: {
-        flex: 1,
-        justifyContent: 'center',
-    },
-    downloadItem: {
-        marginBottom: 16,
-        borderRadius: 8,
-        overflow: 'hidden',
-    },
-    downloadCard: {
-        flexDirection: 'row',
-        backgroundColor: '#111',
-        borderRadius: 8,
-        overflow: 'hidden',
-    },
-    posterContainer: {
-        position: 'relative',
-    },
-    posterPlaceholder: {
-        backgroundColor: '#222',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    statusOverlay: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        padding: 8,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    errorOverlay: {
-        backgroundColor: 'rgba(0,0,0,0.8)',
-    },
-    statusText: {
-        color: '#fff',
-        marginLeft: 8,
-        fontSize: 12,
-    },
-    errorText: {
-        color: '#ff4d4d',
-        marginLeft: 8,
-        fontSize: 12,
-    },
-    playButton: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.4)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    deleteButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 8,
-        alignSelf: 'flex-start',
-    },
-    miniPlayer: {
-        width: '100%',
-        marginTop: 8,
-        borderRadius: 8,
-        overflow: 'hidden',
-        backgroundColor: '#000',
-        position: 'relative',
-    },
-    closePlayerButton: {
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        zIndex: 10,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    errorContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 24,
-    },
-    emptyContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-    },
-});
+  const hasAnyDownloads = downloads.length > 0;
+
+  return (
+    <View className="flex-1 bg-black">
+      <Header />
+
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
+          paddingTop: HEADER_HEIGHT + insets.top,
+          paddingBottom: 60,
+          flexGrow: !hasAnyDownloads ? 1 : undefined
+        }}
+        scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={NETFLIX_RED}
+            colors={[NETFLIX_RED]}
+            progressBackgroundColor={LOADING.REFRESH_BACKGROUND}
+            progressViewOffset={HEADER_HEIGHT + insets.top}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        <StatusBar style="light" />
+
+        {!hasAnyDownloads ? (
+          <EmptyState />
+        ) : (
+          <>
+            {downloadingTasks.length > 0 && (
+              <View className="mt-4 mb-4">
+                <Text className="text-typography-800 font-semibold text-base mb-3 px-4">
+                  Đang tải xuống ({downloadingTasks.length})
+                </Text>
+
+                {Object.entries(groupDownloadsByMovie(downloadingTasks)).map(([movieId, tasks]) => (
+                  <DownloadGroup
+                    key={`downloading-${movieId}`}
+                    title={`Phim: ${tasks[0].title.split(" - ")[0]}`}
+                    movieId={movieId}
+                    tasks={tasks}
+                    type="downloading"
+                    onCancelDownload={handleCancelDownload}
+                    onDeleteDownload={handleDeleteDownload}
+                  />
+                ))}
+              </View>
+            )}
+
+            {cancelledTasks.length > 0 && (
+              <View className="mt-4 mb-4">
+                <Text className="text-typography-800 font-semibold text-base mb-3 px-4">
+                  Tải xuống thất bại ({cancelledTasks.length})
+                </Text>
+
+                {Object.entries(groupDownloadsByMovie(cancelledTasks)).map(([movieId, tasks]) => (
+                  <DownloadGroup
+                    key={`cancelled-${movieId}`}
+                    title={`Phim: ${tasks[0].title.split(" - ")[0]}`}
+                    movieId={movieId}
+                    tasks={tasks}
+                    type="cancelled"
+                    onDeleteDownload={handleDeleteDownload}
+                    onRetryDownload={handleRetryDownload}
+                  />
+                ))}
+              </View>
+            )}
+
+            {Object.keys(groupedCompletedDownloads).length > 0 && (
+              <View className="mb-4 mt-4">
+                <Text className="text-typography-800 font-semibold text-base mb-3 px-4">
+                  Đã tải xuống
+                </Text>
+                {Object.keys(groupedCompletedDownloads).map(movieId => (
+                  <DownloadGroup
+                    key={movieId}
+                    title={`Phim: ${groupedCompletedDownloads[movieId][0].title.split(" - ")[0]}`}
+                    movieId={movieId}
+                    tasks={groupedCompletedDownloads[movieId]}
+                    type="completed"
+                    onPlayVideo={handlePlayVideo}
+                    onDeleteDownload={handleDeleteDownload}
+                  />
+                ))}
+              </View>
+            )}
+          </>
+        )}
+      </ScrollView>
+
+      {isRefreshing && (
+        <View
+          className="absolute top-0 left-0 right-0 flex-row justify-center"
+          style={{ top: HEADER_HEIGHT + insets.top + 10 }}
+        >
+          <View className="bg-secondary-100/80 px-4 py-2 rounded-full">
+            <Text className="text-typography-950 text-xs">Đang cập nhật...</Text>
+          </View>
+        </View>
+      )}
+
+      <ConfirmationModal
+        isOpen={isDownloadModalOpen}
+        onClose={() => setIsDownloadModalOpen(false)}
+        onConfirm={handleConfirmAction}
+        confirmationType={downloadConfirmationType}
+        title={downloadTitle}
+        isLoading={isDownloadLoading}
+      />
+    </View>
+  );
+}

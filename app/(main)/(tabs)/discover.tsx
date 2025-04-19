@@ -11,8 +11,7 @@ import FeaturedCarousel from "@/components/movies/featured-carousel";
 import { HEADER_HEIGHT, LOADING, NETFLIX_RED, TEXT_STYLING, APP_NAME } from "@/constants/ui-constants";
 import DiscoverModal from "@/components/modals/discover-modal";
 import { Ionicons } from "@expo/vector-icons";
-import PosterSection from "@/components/movies/PosterSection";
-import ThumbnailSection from "@/components/movies/ThumbnailSection";
+import ThumbnailSection from "@/components/movies/thumbnail-section";
 
 export default function DiscoverPage() {
   const insets = useSafeAreaInsets();
@@ -219,6 +218,7 @@ export default function DiscoverPage() {
                 title="Mới cập nhật"
                 movies={recentMovies}
                 emptyText="Không có phim mới cập nhật."
+                columns={1}
               />
             </VStack>
           </>

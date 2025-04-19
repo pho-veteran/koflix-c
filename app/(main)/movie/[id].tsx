@@ -10,21 +10,22 @@ import { MovieDetail, Episode, MovieBase, UserInteractionData } from "@/types/mo
 import { NETFLIX_RED } from "@/constants/ui-constants";
 import { VStack } from "@/components/ui/vstack";
 import EpisodeSelectorModal from "@/components/modals/episode-selector-modal";
-import PosterSection from "@/components/movies/PosterSection";
+import PosterSection from "@/components/movies/poster-section";
 import { getSimilarMovies } from "@/api/recommendations";
 import { useAuth } from "@/providers/auth-context";
 import { CommentList } from "@/components/comments";
 
-import {
-  MovieHero,
-  MovieActions,
-  MovieInfo,
-  MovieGenres,
-  MovieInteractions,
-  MovieSynopsis,
-  MovieDetails,
-  MovieTrailer
-} from "./components";
+// Components
+import MovieHero from "./components/movie-hero";
+import MovieActions from "./components/movie-actions";
+import MovieInfo from "./components/movie-info";
+import MovieGenres from "./components/movie-genres";
+import MovieInteractions from "./components/movie-interactions";
+import MovieTrailer from "./components/movie-trailer";
+import MovieSynopsis from "./components/movie-synopsis";
+import MovieDetails from "./components/movie-details";
+
+
 
 export default function MovieDetailScreen() {
   const { id } = useLocalSearchParams();

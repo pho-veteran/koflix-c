@@ -1,124 +1,82 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { View, TouchableOpacity, ActivityIndicator, StyleSheet, Platform, Dimensions } from 'react-native';
-import Video, { VideoRef, OnProgressData } from 'react-native-video';
-import { LinearGradient } from "expo-linear-gradient";
+import React from 'react';
+import { View, TouchableOpacity, ActivityIndicator, StyleSheet, Platform, Animated } from 'react-native';
+import Video from 'react-native-video';
 import { Ionicons } from "@expo/vector-icons";
 import { Text } from "@/components/ui/text";
-import { HStack } from "@/components/ui/hstack";
 import { NETFLIX_RED } from "@/constants/ui-constants";
 import { EpisodeServer } from "@/types/movie-type";
-import { VStack } from '@/components/ui/vstack';
-import DownloadButton from '@/components/video/download-button';
+import { useVideoPlayer } from '@/hooks/use-video-player';
+import VideoPlayerControls from './video-player-control';
 
 interface VideoPlayerProps {
   selectedServer: EpisodeServer | null;
   isFullscreen: boolean;
-  isVideoLoading: boolean;
-  isPlaying: boolean;
-  videoError: string;
-  showControls: boolean;
-  onVideoPress: () => void;
-  onTogglePlay: () => void;
-  onToggleFullscreen: () => void;
-  onGoBack: () => void;
-  onOpenEpisodeModal: () => void;
-  setIsVideoLoading: (loading: boolean) => void;
-  setVideoError: (error: string) => void;
+  videoPlayerHook: ReturnType<typeof useVideoPlayer>;
   onVideoLoaded?: () => void;
-  // Download props
+  onOpenEpisodeModal: () => void;
+
   movieId?: string;
   movieName?: string;
   episodeId?: string;
   episodeName?: string;
   posterUrl?: string;
   thumbUrl?: string;
+  playbackRate: number;  // Add this prop
+  onChangePlaybackRate: (rate: number) => void;  // Add this prop
 }
 
 const VideoPlayer = ({
   selectedServer,
   isFullscreen,
-  isVideoLoading,
-  isPlaying,
-  videoError,
-  showControls,
-  onVideoPress,
-  onTogglePlay,
-  onToggleFullscreen,
-  onGoBack,
+  videoPlayerHook,
   onOpenEpisodeModal,
-  setIsVideoLoading,
-  setVideoError,
   onVideoLoaded,
-  // Download props
   movieId,
   movieName,
   episodeId,
   episodeName,
-  posterUrl,
-  thumbUrl
+  thumbUrl,
+  playbackRate,  // Add this prop
+  onChangePlaybackRate  // Add this prop
 }: VideoPlayerProps) => {
-  const videoRef = useRef<VideoRef>(null);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [isSeeking, setIsSeeking] = useState(false);
-  const controlsTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    const clearTimer = () => {
-      if (controlsTimerRef.current) {
-        clearTimeout(controlsTimerRef.current);
-        controlsTimerRef.current = null;
-      }
-    };
-
-    clearTimer();
-
-    if (showControls && isPlaying && !isSeeking) {
-      controlsTimerRef.current = setTimeout(() => {
-        onVideoPress();
-      }, 3000);
-    }
-
-    return clearTimer;
-  }, [showControls, isPlaying, isSeeking, onVideoPress]);
-
-  const formatTime = (timeInSeconds: number) => {
-    const minutes = Math.floor(timeInSeconds / 60);
-    const seconds = Math.floor(timeInSeconds % 60);
-    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-  };
-
-  const handleProgress = (data: OnProgressData) => {
-    if (!isSeeking) {
-      setCurrentTime(data.currentTime);
-    }
-  };
-
-  const handleLoad = (data: any) => {
-    setDuration(data.duration);
-    setIsVideoLoading(false);
-  };
-
-  const handleSeek = (locationX: number) => {
-    const { width } = Dimensions.get('window');
-    const percentage = locationX / width;
-    const newTime = percentage * duration;
-
-    setCurrentTime(newTime);
-
-    if (videoRef.current) {
-      videoRef.current.seek(newTime);
-    }
-  };
+  const {
+    videoRef,
+    fadeAnim,
+    isLoading: isVideoLoading,
+    setIsLoading: setIsVideoLoading,
+    error: videoError,
+    setError: setVideoError,
+    isPlaying,
+    showControls,
+    currentTime,
+    duration,
+    isSeeking,
+    setIsSeeking,
+    toggleFullscreen,
+    togglePlay,
+    toggleControls,
+    handleGoBack,
+    handleProgress,
+    handleLoad,
+    handleSeek,
+    formatTime,
+    seekBySeconds, // Add this
+  } = videoPlayerHook;
 
   const handleStartSeeking = () => setIsSeeking(true);
-
   const handleEndSeeking = () => setIsSeeking(false);
+
+  const customHandleLoad = (data: any) => {
+    handleLoad(data);
+    if (onVideoLoaded) {
+      onVideoLoaded();
+    }
+  };
 
   return (
     <TouchableOpacity
       activeOpacity={1}
-      onPress={onVideoPress}
+      onPress={toggleControls}
       style={[
         styles.videoContainer,
         isFullscreen ? styles.fullscreenVideo : { height: 230 }
@@ -131,12 +89,7 @@ const VideoPlayer = ({
           style={styles.video}
           resizeMode="contain"
           onLoadStart={() => setIsVideoLoading(true)}
-          onLoad={(data) => {
-            handleLoad(data);
-            if (onVideoLoaded) {
-              onVideoLoaded();
-            }
-          }}
+          onLoad={customHandleLoad}
           onProgress={handleProgress}
           onError={(error) => {
             console.error("Video error:", error);
@@ -147,6 +100,7 @@ const VideoPlayer = ({
           playInBackground={false}
           repeat={false}
           controls={false}
+          rate={playbackRate}  // Add this line
         />
       ) : (
         <View className="flex-1 bg-secondary-200 justify-center items-center">
@@ -154,124 +108,40 @@ const VideoPlayer = ({
         </View>
       )}
 
-      {showControls && (
-        <View style={styles.controlsContainer}>
-          <LinearGradient
-            colors={['rgba(0,0,0,0.7)', 'rgba(0,0,0,0)']}
-            style={[styles.controlBar, styles.topBar]}
-          >
-            <HStack className="justify-between items-center w-full px-4">
-              <TouchableOpacity onPress={onGoBack} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}>
-                <Ionicons name="arrow-back" size={24} color="#fff" />
-              </TouchableOpacity>
-              {!isFullscreen && (
-                <Text className="text-typography-800 font-medium pl-2" numberOfLines={1}>
-                  {selectedServer?.filename}
-                </Text>
-              )}
-              {isFullscreen && (
-                <TouchableOpacity
-                  onPress={onOpenEpisodeModal}
-                  className="bg-secondary-300/60 px-3 py-1 rounded-full"
-                >
-                  <HStack space="xs" className="items-center">
-                    <Ionicons name="list" size={16} color="#fff" />
-                    <Text className="text-typography-800 text-xs">Tập phim</Text>
-                  </HStack>
-                </TouchableOpacity>
-              )}
-            </HStack>
-          </LinearGradient>
-
-          <TouchableOpacity
-            onPress={onTogglePlay}
-            style={styles.centerButton}
-            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-          >
-            <View className="bg-primary-400/80 rounded-full w-16 h-16 items-center justify-center">
-              <Ionicons
-                name={isPlaying ? "pause" : "play"}
-                size={30}
-                color="#fff"
-                style={isPlaying ? {} : { marginLeft: 4 }}
-              />
-            </View>
-          </TouchableOpacity>
-
-          <VStack>
-            <View style={styles.progressBarContainer}>
-              <HStack className="justify-between w-full px-4 mb-1">
-                <Text className="text-typography-800 text-xs">
-                  {formatTime(currentTime)}
-                </Text>
-                <Text className="text-typography-800 text-xs">
-                  {formatTime(duration)}
-                </Text>
-              </HStack>
-
-              <TouchableOpacity
-                activeOpacity={1}
-                onPressIn={handleStartSeeking}
-                onPressOut={handleEndSeeking}
-                onPress={(event) => handleSeek(event.nativeEvent.locationX)}
-                style={styles.progressBarTouchable}
-              >
-                <View style={styles.progressBarBackground}>
-                  <View
-                    style={[
-                      styles.progressBarFill,
-                      { width: `${(currentTime / duration) * 100}%` }
-                    ]}
-                  />
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            <LinearGradient
-              colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.7)']}
-              style={[styles.controlBar, styles.bottomBar]}
-            >
-              <HStack className="justify-between items-center w-full px-4">
-                <HStack space="md" className="items-center">
-                  <Text className="text-typography-800 text-xs">
-                    {selectedServer?.server_name || "Đang phát"}
-                  </Text>
-                  
-                  {/* Download Button */}
-                  {selectedServer?.link_m3u8 && episodeId && (
-                    <DownloadButton
-                      videoId={episodeId}
-                      m3u8Url={selectedServer.link_m3u8}
-                      title={episodeName || selectedServer.filename || "Episode"}
-                      posterUrl={posterUrl}
-                      thumbUrl={thumbUrl}
-                      iconSize={22}
-                      iconColor="#fff"
-                      movieId={movieId}
-                      movieName={movieName}
-                      episodeId={episodeId}
-                      episodeName={episodeName}
-                      episodeServerId={selectedServer.id}
-                      episodeServerFileName={selectedServer.filename}
-                    />
-                  )}
-                </HStack>
-                
-                <TouchableOpacity
-                  onPress={onToggleFullscreen}
-                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                >
-                  <Ionicons
-                    name={isFullscreen ? "contract" : "expand"}
-                    size={24}
-                    color="#fff"
-                  />
-                </TouchableOpacity>
-              </HStack>
-            </LinearGradient>
-          </VStack>
-        </View>
-      )}
+      {/* Video Controls Component */}
+      <VideoPlayerControls
+        visible={showControls}
+        isPlaying={isPlaying}
+        isFullscreen={isFullscreen}
+        currentTime={currentTime}
+        duration={duration}
+        filename={selectedServer?.filename}
+        onVideoPress={toggleControls}
+        onTogglePlay={togglePlay}
+        onToggleFullscreen={toggleFullscreen}
+        onGoBack={handleGoBack}
+        onSeek={handleSeek}
+        onStartSeeking={handleStartSeeking}
+        onEndSeeking={handleEndSeeking}
+        onOpenEpisodeModal={onOpenEpisodeModal}
+        fadeAnim={fadeAnim}
+        serverName={selectedServer?.server_name}
+        formatTime={formatTime}
+        seekBySeconds={seekBySeconds} // Add this line
+        
+        // Download button props
+        movieId={movieId}
+        movieName={movieName}
+        episodeId={episodeId}
+        episodeName={episodeName}
+        episodeServerId={selectedServer?.id}
+        episodeServerName={selectedServer?.server_name}
+        episodeServerFileName={selectedServer?.filename}
+        m3u8Url={selectedServer?.link_m3u8}
+        thumbUrl={thumbUrl}
+        playbackRate={playbackRate}
+        onChangePlaybackRate={onChangePlaybackRate}
+      />
 
       {isVideoLoading && (
         <View style={styles.loaderContainer}>
@@ -307,25 +177,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  controlsContainer: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'space-between',
-    zIndex: 10,
-  },
-  controlBar: {
-    width: '100%',
-  },
-  topBar: {
-    paddingTop: Platform.OS === 'ios' ? 44 : 10,
-  },
-  bottomBar: {
-    paddingBottom: Platform.OS === 'ios' ? 34 : 10,
-  },
-  centerButton: {
-    position: 'absolute',
-    alignSelf: 'center',
-    top: '35%', 
-  },
   loaderContainer: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
@@ -340,25 +191,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     padding: 20,
     zIndex: 3,
-  },
-  progressBarContainer: {
-    width: '100%',
-  },
-  progressBarTouchable: {
-    height: 25,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  progressBarBackground: {
-    height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 3,
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: NETFLIX_RED,
-    borderRadius: 3,
-  },
+  }
 });
 
 export default VideoPlayer;

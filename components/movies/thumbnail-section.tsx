@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { View, ActivityIndicator, FlatList, TouchableOpacity } from "react-native";
 import { Text } from "@/components/ui/text";
 import { MovieBase } from "@/types/movie-type";
-import ThumbnailCard from "./ThumbnailCard";
+import ThumbnailCard from "./thumbnail-card";
 import { NETFLIX_RED } from "@/constants/ui-constants";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -27,7 +27,7 @@ const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
   const [paginatedMovies, setPaginatedMovies] = useState<MovieBase[]>([]);
 
   const itemsPerPage = useMemo(() => {
-    return columns === 1 ? 4 : 12;
+    return columns === 1 ? 4 : 10;
   }, [columns]);
 
   const totalPages = Math.ceil(movies.length / itemsPerPage);

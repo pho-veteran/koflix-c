@@ -2,7 +2,7 @@ import React from "react";
 import { View, TouchableOpacity } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Ionicons } from "@expo/vector-icons";
-import ThumbnailSection from "@/components/movies/ThumbnailSection";
+import ThumbnailSection from "@/components/movies/thumbnail-section";
 import { MovieBase } from "@/types/movie-type";
 
 interface SearchResultsProps {

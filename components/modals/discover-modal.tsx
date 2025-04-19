@@ -148,10 +148,7 @@ export default function DiscoverModal({
             className="w-full h-full rounded-3xl overflow-hidden"
           >
             <View className="px-5 pt-5 pb-3">
-              <View className="flex-row justify-between items-center mb-4">
-                <Text className="text-2xl font-bold text-primary-500">
-                  {activeTab === 'genres' ? 'Thể loại phim' : 'Loại phim'}
-                </Text>
+              <View className="flex-row justify-end items-center mb-4">
                 <TouchableOpacity 
                   onPress={onClose}
                   className="w-9 h-9 rounded-full bg-zinc-800/80 items-center justify-center"
