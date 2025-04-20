@@ -94,7 +94,7 @@ export default function AuthIndexPage() {
           />
         </View>
         
-        {/* Middle Section - UPDATED WITHOUT KOFLIX TEXT */}
+        {/* Middle Section */}
         <View className="items-center">
           <Text className="text-typography-950 text-4xl font-bold text-center mb-4">
             Trải nghiệm giải trí mọi lúc, mọi nơi

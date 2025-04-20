@@ -115,7 +115,6 @@ export default function EpisodePlayerScreen() {
 
     // Only save if we've watched more than 10 seconds
     if (currentTime > 10) {
-      console.log("Saving progress on critical event:", progressPercent.toFixed(2) + "%");
       saveWatchProgress(
         movie.id,
         selectedServer.id,

@@ -8,7 +8,7 @@ import {
   PAGINATION,
   CAROUSEL_AUTO_PLAY_INTERVAL
 } from '@/constants/ui-constants';
-
+import { useIsFocused } from '@react-navigation/native';
 interface FeaturedCarouselProps {
   movies: MovieBase[];
   isRefreshing?: boolean;
@@ -25,23 +25,24 @@ const FeaturedCarousel: React.FC<FeaturedCarouselProps> = ({
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const { width, height } = useWindowDimensions();
-  
+  const isFocused = useIsFocused();
+
   const isLandscape = width > height;
-  
+
   const carouselWidth = width;
-  const carouselHeight = isLandscape 
+  const carouselHeight = isLandscape
     ? height * 0.7
     : width * 0.75;
-  
+
   const maxVisibleDots = isLandscape ? 5 : movies.length;
-  
+
   const renderCarouselItem = ({ item, index }: CarouselRenderItemInfo) => {
     return (
-      <View style={{ 
-        width: carouselWidth, 
+      <View style={{
+        width: carouselWidth,
         height: carouselHeight,
         borderRadius: isLandscape ? 12 : 0,
-        overflow: 'hidden', 
+        overflow: 'hidden',
       }}>
         <FeaturedMovieCard
           movie={item}
@@ -53,7 +54,7 @@ const FeaturedCarousel: React.FC<FeaturedCarouselProps> = ({
     );
   };
 
-  if (!movies || movies.length === 0) {
+  if (!isFocused || !movies || movies.length === 0) {
     return null;
   }
 
@@ -62,7 +63,7 @@ const FeaturedCarousel: React.FC<FeaturedCarouselProps> = ({
       const halfVisible = Math.floor(maxVisibleDots / 2);
       let startIdx = currentIndex - halfVisible;
       let endIdx = currentIndex + halfVisible;
-      
+
       if (startIdx < 0) {
         endIdx += Math.abs(startIdx);
         startIdx = 0;
@@ -71,12 +72,12 @@ const FeaturedCarousel: React.FC<FeaturedCarouselProps> = ({
         startIdx = Math.max(0, startIdx - (endIdx - movies.length + 1));
         endIdx = movies.length - 1;
       }
-      
+
       const visibleDots = [];
-      
+
       if (startIdx > 0) {
         visibleDots.push(
-          <View 
+          <View
             key="leading-dots"
             style={{
               width: PAGINATION.DOT_WIDTH * 3,
@@ -88,7 +89,7 @@ const FeaturedCarousel: React.FC<FeaturedCarouselProps> = ({
           />
         );
       }
-      
+
       for (let i = startIdx; i <= endIdx; i++) {
         visibleDots.push(
           <View
@@ -103,10 +104,10 @@ const FeaturedCarousel: React.FC<FeaturedCarouselProps> = ({
           />
         );
       }
-      
+
       if (endIdx < movies.length - 1) {
         visibleDots.push(
-          <View 
+          <View
             key="trailing-dots"
             style={{
               width: PAGINATION.DOT_WIDTH * 3,
@@ -118,10 +119,10 @@ const FeaturedCarousel: React.FC<FeaturedCarouselProps> = ({
           />
         );
       }
-      
+
       return visibleDots;
     }
-    
+
     return movies.map((_, index) => (
       <View
         key={index}

@@ -36,7 +36,7 @@ export default function DiscoverPage() {
       if (!selectedFilter || !filterType) {
         // Default view - general trending and recent
         const [recent, trending] = await Promise.all([
-          getRecentlyAddedMovies(20),
+          getRecentlyAddedMovies(50),
           getTrendingMovies(),
         ]);
         setRecentMovies(recent);

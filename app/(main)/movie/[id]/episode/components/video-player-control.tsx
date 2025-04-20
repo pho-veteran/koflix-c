@@ -153,7 +153,6 @@ const VideoPlayerControls = ({
         <View style={styles.centerControlsContainer}>
           <TouchableOpacity
             onPress={() => seekBySeconds(-10)}
-            style={styles.seekButton}
             hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
           >
             <View className="bg-secondary-300/80 rounded-full w-12 h-12 items-center justify-center">
@@ -178,7 +177,6 @@ const VideoPlayerControls = ({
           
           <TouchableOpacity
             onPress={() => seekBySeconds(10)}
-            style={styles.seekButton}
             hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
           >
             <View className="bg-secondary-300/80 rounded-full w-12 h-12 items-center justify-center">
@@ -315,9 +313,6 @@ const styles = StyleSheet.create({
   },
   centerButton: {
     marginHorizontal: 20,
-  },
-  seekButton: {
-    // Smaller than the center play/pause button
   },
   progressBarContainer: {
     width: '100%',

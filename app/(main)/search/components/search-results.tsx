@@ -22,6 +22,9 @@ const SearchResults = ({
   onClearFilters,
   hasActiveFilters,
 }: SearchResultsProps) => {
+  // Determine the number of columns based on the results length
+  const numColumns = results.length <= 8 ? 1 : 2;
+
   return (
     <View className="px-4">
       {/* Results count and pagination info */}
@@ -43,7 +46,7 @@ const SearchResults = ({
       {/* Results grid */}
       <ThumbnailSection
         title=""
-        columns={2}
+        columns={numColumns}
         movies={results}
         emptyText=""
       />

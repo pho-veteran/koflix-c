@@ -56,7 +56,6 @@ const MovieInteractions: React.FC<MovieInteractionsProps> = ({
       // Toggle off like if already liked
       const interactionType: InteractionType = isLiked ? "DISLIKE" : "LIKE";
       
-      // Fix: Remove user.id parameter
       await postUserInteraction(movieId, interactionType);
       
       const newInteraction: UserInteractionData = {
@@ -86,7 +85,6 @@ const MovieInteractions: React.FC<MovieInteractionsProps> = ({
     try {
       const interactionType: InteractionType = isDisliked ? "LIKE" : "DISLIKE";
       
-      // Fix: Remove user.id parameter
       await postUserInteraction(movieId, interactionType);
       
       const newInteraction: UserInteractionData = {
@@ -112,26 +110,31 @@ const MovieInteractions: React.FC<MovieInteractionsProps> = ({
     
     setIsSubmitting(true);
     try {
-      // Fix: Remove user.id parameter
       await postUserInteraction(movieId, "RATE", rating);
+      
+      const isFirstTimeRating = !userRating;
+      const previousUserRatingValue = userRating || 0;
+
+      const countBeforeThisAction = displayedRatingCount;
+      
+      const totalPointsBeforeThisAction = displayedRating * countBeforeThisAction;
+
+      const newTotalPoints = totalPointsBeforeThisAction - previousUserRatingValue + rating;
+
+      const newRatingCount = countBeforeThisAction + (isFirstTimeRating ? 1 : 0);
+
+      const newAvgRating = newRatingCount > 0 
+        ? newTotalPoints / newRatingCount 
+        : rating;
+        
+      setDisplayedRating(Number(newAvgRating.toFixed(1)));
+      setDisplayedRatingCount(newRatingCount);
       
       const newInteraction: UserInteractionData = {
         isLiked: isLiked,
         isDisliked: isDisliked,
         rating: rating,
       };
-      
-      if (!userRating) {
-        setDisplayedRatingCount(prev => prev + 1);
-      }
-      
-      const oldTotalPoints = displayedRating * displayedRatingCount;
-      const newTotalPoints = oldTotalPoints + (rating - (userRating || 0));
-      const newAvgRating = displayedRatingCount > 0 
-        ? newTotalPoints / displayedRatingCount 
-        : rating;
-        
-      setDisplayedRating(Number(newAvgRating.toFixed(1)));
       
       onInteractionUpdate(newInteraction);
     } catch (error) {

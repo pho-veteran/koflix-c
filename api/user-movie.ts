@@ -490,8 +490,6 @@ export async function getEpisodeWatchHistory(
             }
         );
 
-        console.log("Episode watch history response:", response.data);
-
         return response.data;
     } catch (error) {
         console.error("Error fetching episode watch history:", error);
