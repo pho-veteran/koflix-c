@@ -1,5 +1,12 @@
 import axios from "axios";
-import { Comment, Reply, MovieInteraction, InteractionType, EpisodeWatchHistory } from "@/types/user-movie-type";
+import {
+    Comment,
+    Reply,
+    MovieInteraction,
+    InteractionType,
+    EpisodeWatchHistory,
+    EpisodeWatchHistoryResponse,
+} from "@/types/user-movie-type";
 import { getIdToken } from "@/lib/firebase-auth";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -27,7 +34,10 @@ export async function postUserInteraction(
         const tokenResult = await getIdToken(true);
 
         if (!tokenResult.success || !tokenResult.data) {
-            console.error("Failed to get ID token for interaction:", tokenResult.error?.message);
+            console.error(
+                "Failed to get ID token for interaction:",
+                tokenResult.error?.message
+            );
             throw new Error("Authentication required to perform this action.");
         }
 
@@ -43,7 +53,9 @@ export async function postUserInteraction(
             );
         }
         if (interactionType !== "RATE" && rating !== undefined) {
-            throw new Error("Rating should only be provided for RATE interactions");
+            throw new Error(
+                "Rating should only be provided for RATE interactions"
+            );
         }
 
         const payload: {
@@ -72,11 +84,15 @@ export async function postUserInteraction(
         if (axios.isAxiosError(error)) {
             if (error.response) {
                 const status = error.response.status;
-                const apiError = error.response.data?.error || error.response.data?.message || "Unknown API error";
+                const apiError =
+                    error.response.data?.error ||
+                    error.response.data?.message ||
+                    "Unknown API error";
                 errorMessage = `API Error (${status}): ${apiError}`;
                 console.error(`API Error (${status}):`, error.response.data);
             } else if (error.request) {
-                errorMessage = "No response received from server. Check network connection.";
+                errorMessage =
+                    "No response received from server. Check network connection.";
                 console.error("No response received:", error.request);
             } else {
                 errorMessage = `Request setup error: ${error.message}`;
@@ -100,41 +116,44 @@ export async function postUserInteraction(
  * @returns The newly created comment
  */
 export async function createComment(
-  content: string,
-  movieId?: string,
-  episodeId?: string
+    content: string,
+    movieId?: string,
+    episodeId?: string
 ): Promise<Comment | null> {
-  try {
-    if (!content.trim()) {
-      throw new Error("Comment content cannot be empty");
+    try {
+        if (!content.trim()) {
+            throw new Error("Comment content cannot be empty");
+        }
+
+        if (!movieId && !episodeId) {
+            throw new Error("Either movieId or episodeId must be provided");
+        }
+
+        const tokenResult = await getIdToken(true);
+
+        if (!tokenResult.success || !tokenResult.data) {
+            console.error(
+                "Failed to get ID token:",
+                tokenResult.error?.message
+            );
+            return null;
+        }
+
+        const response = await axios.post(
+            `${API_URL}/api/public/user-movie/comments`,
+            {
+                idToken: tokenResult.data,
+                content,
+                movieId,
+                episodeId,
+            }
+        );
+
+        return response.data.comment;
+    } catch (error) {
+        console.error("Error creating comment:", error);
+        return null;
     }
-    
-    if (!movieId && !episodeId) {
-      throw new Error("Either movieId or episodeId must be provided");
-    }
-    
-    const tokenResult = await getIdToken(true);
-    
-    if (!tokenResult.success || !tokenResult.data) {
-      console.error("Failed to get ID token:", tokenResult.error?.message);
-      return null;
-    }
-    
-    const response = await axios.post(
-      `${API_URL}/api/public/user-movie/comments`,
-      {
-        idToken: tokenResult.data,
-        content,
-        movieId,
-        episodeId
-      }
-    );
-    
-    return response.data.comment;
-  } catch (error) {
-    console.error("Error creating comment:", error);
-    return null;
-  }
 }
 
 /**
@@ -143,33 +162,33 @@ export async function createComment(
  * @returns Comments and pagination data
  */
 export async function getComments(options: {
-  movieId?: string;
-  episodeId?: string;
-  page?: number;
-  limit?: number;
+    movieId?: string;
+    episodeId?: string;
+    page?: number;
+    limit?: number;
 }): Promise<{ data: Comment[]; pagination: any } | null> {
-  try {
-    if (!options.movieId && !options.episodeId) {
-      throw new Error("Either movieId or episodeId must be provided");
+    try {
+        if (!options.movieId && !options.episodeId) {
+            throw new Error("Either movieId or episodeId must be provided");
+        }
+
+        const params = {
+            movieId: options.movieId,
+            episodeId: options.episodeId,
+            page: options.page || 1,
+            limit: options.limit || 15,
+        };
+
+        const response = await axios.get(
+            `${API_URL}/api/public/user-movie/comments`,
+            { params }
+        );
+
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching comments:", error);
+        return null;
     }
-    
-    const params = {
-      movieId: options.movieId,
-      episodeId: options.episodeId,
-      page: options.page || 1,
-      limit: options.limit || 15
-    };
-    
-    const response = await axios.get(
-      `${API_URL}/api/public/user-movie/comments`,
-      { params }
-    );
-    
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching comments:", error);
-    return null;
-  }
 }
 
 /**
@@ -179,40 +198,43 @@ export async function getComments(options: {
  * @returns The newly created reply
  */
 export async function createReply(
-  content: string,
-  commentId: string
+    content: string,
+    commentId: string
 ): Promise<Reply | null> {
-  try {
-    if (!content.trim()) {
-      throw new Error("Reply content cannot be empty");
+    try {
+        if (!content.trim()) {
+            throw new Error("Reply content cannot be empty");
+        }
+
+        if (!commentId) {
+            throw new Error("Comment ID must be provided");
+        }
+
+        // Get authentication token
+        const tokenResult = await getIdToken(true);
+
+        if (!tokenResult.success || !tokenResult.data) {
+            console.error(
+                "Failed to get ID token:",
+                tokenResult.error?.message
+            );
+            return null;
+        }
+
+        const response = await axios.post(
+            `${API_URL}/api/public/user-movie/replies`,
+            {
+                idToken: tokenResult.data,
+                content,
+                commentId,
+            }
+        );
+
+        return response.data.reply;
+    } catch (error) {
+        console.error("Error creating reply:", error);
+        return null;
     }
-    
-    if (!commentId) {
-      throw new Error("Comment ID must be provided");
-    }
-    
-    // Get authentication token
-    const tokenResult = await getIdToken(true);
-    
-    if (!tokenResult.success || !tokenResult.data) {
-      console.error("Failed to get ID token:", tokenResult.error?.message);
-      return null;
-    }
-    
-    const response = await axios.post(
-      `${API_URL}/api/public/user-movie/replies`,
-      {
-        idToken: tokenResult.data,
-        content,
-        commentId
-      }
-    );
-    
-    return response.data.reply;
-  } catch (error) {
-    console.error("Error creating reply:", error);
-    return null;
-  }
 }
 
 /**
@@ -223,31 +245,31 @@ export async function createReply(
  * @returns Replies and pagination data
  */
 export async function getReplies(
-  commentId: string,
-  page: number = 1,
-  limit: number = 10
+    commentId: string,
+    page: number = 1,
+    limit: number = 10
 ): Promise<{ data: Reply[]; pagination: any } | null> {
-  try {
-    if (!commentId) {
-      throw new Error("Comment ID must be provided");
+    try {
+        if (!commentId) {
+            throw new Error("Comment ID must be provided");
+        }
+
+        const params = {
+            commentId,
+            page,
+            limit,
+        };
+
+        const response = await axios.get(
+            `${API_URL}/api/public/user-movie/replies`,
+            { params }
+        );
+
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching replies:", error);
+        return null;
     }
-    
-    const params = {
-      commentId,
-      page,
-      limit
-    };
-    
-    const response = await axios.get(
-      `${API_URL}/api/public/user-movie/replies`,
-      { params }
-    );
-    
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching replies:", error);
-    return null;
-  }
 }
 
 /**
@@ -256,50 +278,57 @@ export async function getReplies(
  * @returns Success message or error
  */
 export async function trackMovieView(
-  movieId: string
-): Promise<{success: boolean, message: string}> {
-  try {
-    if (!movieId) throw new Error("Movie ID is required");
-    
-    const tokenResult = await getIdToken(true);
-    
-    if (!tokenResult.success || !tokenResult.data) {
-      console.error("Failed to get ID token for view tracking:", tokenResult.error?.message);
-      throw new Error("Authentication required to track movie views.");
+    movieId: string
+): Promise<{ success: boolean; message: string }> {
+    try {
+        if (!movieId) throw new Error("Movie ID is required");
+
+        const tokenResult = await getIdToken(true);
+
+        if (!tokenResult.success || !tokenResult.data) {
+            console.error(
+                "Failed to get ID token for view tracking:",
+                tokenResult.error?.message
+            );
+            throw new Error("Authentication required to track movie views.");
+        }
+
+        const response = await axios.post(
+            `${API_URL}/api/public/user-movie/view`,
+            {
+                idToken: tokenResult.data,
+                movieId,
+            }
+        );
+
+        return response.data;
+    } catch (error: any) {
+        let errorMessage = "An unexpected error occurred during view tracking.";
+        if (axios.isAxiosError(error)) {
+            if (error.response) {
+                const status = error.response.status;
+                const apiError =
+                    error.response.data?.error ||
+                    error.response.data?.message ||
+                    "Unknown API error";
+                errorMessage = `API Error (${status}): ${apiError}`;
+                console.error(`API Error (${status}):`, error.response.data);
+            } else if (error.request) {
+                errorMessage =
+                    "No response received from server. Check network connection.";
+                console.error("No response received:", error.request);
+            } else {
+                errorMessage = `Request setup error: ${error.message}`;
+                console.error("Request setup error:", error.message);
+            }
+        } else if (error instanceof Error) {
+            errorMessage = error.message;
+            console.error("View tracking pre-request error:", error.message);
+        } else {
+            console.error("Unexpected error type:", error);
+        }
+        return { success: false, message: errorMessage };
     }
-    
-    const response = await axios.post(
-      `${API_URL}/api/public/user-movie/view`,
-      {
-        idToken: tokenResult.data,
-        movieId
-      }
-    );
-    
-    return response.data;
-  } catch (error: any) {
-    let errorMessage = "An unexpected error occurred during view tracking.";
-    if (axios.isAxiosError(error)) {
-      if (error.response) {
-        const status = error.response.status;
-        const apiError = error.response.data?.error || error.response.data?.message || "Unknown API error";
-        errorMessage = `API Error (${status}): ${apiError}`;
-        console.error(`API Error (${status}):`, error.response.data);
-      } else if (error.request) {
-        errorMessage = "No response received from server. Check network connection.";
-        console.error("No response received:", error.request);
-      } else {
-        errorMessage = `Request setup error: ${error.message}`;
-        console.error("Request setup error:", error.message);
-      }
-    } else if (error instanceof Error) {
-      errorMessage = error.message;
-      console.error("View tracking pre-request error:", error.message);
-    } else {
-      console.error("Unexpected error type:", error);
-    }
-    return { success: false, message: errorMessage };
-  }
 }
 
 /**
@@ -311,69 +340,80 @@ export async function trackMovieView(
  * @returns Updated watch history record
  */
 export async function saveWatchProgress(
-  movieId: string,
-  episodeServerId: string,
-  progress: number,
-  durationWatched?: number
-): Promise<{success: boolean, watchHistory: EpisodeWatchHistory}> {
-  try {
-    if (!movieId) throw new Error("Movie ID is required");
-    if (!episodeServerId) throw new Error("Episode server ID is required");
-    if (progress < 0 || progress > 100) throw new Error("Progress must be between 0 and 100");
-    
-    const tokenResult = await getIdToken(true);
-    
-    if (!tokenResult.success || !tokenResult.data) {
-      console.error("Failed to get ID token for saving watch progress:", tokenResult.error?.message);
-      throw new Error("Authentication required to save watch progress.");
+    movieId: string,
+    episodeServerId: string,
+    progress: number,
+    durationWatched?: number
+): Promise<{ success: boolean; watchHistory: EpisodeWatchHistory }> {
+    try {
+        if (!movieId) throw new Error("Movie ID is required");
+        if (!episodeServerId) throw new Error("Episode server ID is required");
+        if (progress < 0 || progress > 100)
+            throw new Error("Progress must be between 0 and 100");
+
+        const tokenResult = await getIdToken(true);
+
+        if (!tokenResult.success || !tokenResult.data) {
+            console.error(
+                "Failed to get ID token for saving watch progress:",
+                tokenResult.error?.message
+            );
+            throw new Error("Authentication required to save watch progress.");
+        }
+
+        const payload: {
+            idToken: string;
+            movieId: string;
+            episodeServerId: string;
+            progress: number;
+            durationWatched?: number;
+        } = {
+            idToken: tokenResult.data,
+            movieId,
+            episodeServerId,
+            progress,
+        };
+
+        if (durationWatched !== undefined) {
+            payload.durationWatched = durationWatched;
+        }
+
+        console.log("Saving watch progress:", payload);
+
+        const response = await axios.post(
+            `${API_URL}/api/public/user-movie/watch-history`,
+            payload
+        );
+
+        return response.data;
+    } catch (error: any) {
+        let errorMessage =
+            "An unexpected error occurred while saving watch progress.";
+        if (axios.isAxiosError(error)) {
+            if (error.response) {
+                const status = error.response.status;
+                const apiError =
+                    error.response.data?.error ||
+                    error.response.data?.message ||
+                    "Unknown API error";
+                errorMessage = `API Error (${status}): ${apiError}`;
+                console.error(`API Error (${status}):`, error.response.data);
+            } else if (error.request) {
+                errorMessage =
+                    "No response received from server. Check network connection.";
+                console.error("No response received:", error.request);
+            } else {
+                errorMessage = `Request setup error: ${error.message}`;
+                console.error("Request setup error:", error.message);
+            }
+        } else if (error instanceof Error) {
+            errorMessage = error.message;
+            console.error("Watch progress pre-request error:", error.message);
+        } else {
+            console.error("Unexpected error type:", error);
+        }
+        return { success: false, watchHistory: {} as EpisodeWatchHistory };
     }
-    
-    const payload: {
-      idToken: string;
-      movieId: string;
-      episodeServerId: string;
-      progress: number;
-      durationWatched?: number;
-    } = {
-      idToken: tokenResult.data,
-      movieId,
-      episodeServerId,
-      progress
-    };
-    
-    if (durationWatched !== undefined) {
-      payload.durationWatched = durationWatched;
-    }
-    
-    const response = await axios.post(
-      `${API_URL}/api/public/user-movie/watch-history`,
-      payload
-    );
-    
-    return response.data;
-  } catch (error: any) {
-    let errorMessage = "An unexpected error occurred while saving watch progress.";
-    if (axios.isAxiosError(error)) {
-      if (error.response) {
-        const status = error.response.status;
-        const apiError = error.response.data?.error || error.response.data?.message || "Unknown API error";
-        errorMessage = `API Error (${status}): ${apiError}`;
-        console.error(`API Error (${status}):`, error.response.data);
-      } else if (error.request) {
-        errorMessage = "No response received from server. Check network connection.";
-        console.error("No response received:", error.request);
-      } else {
-        errorMessage = `Request setup error: ${error.message}`;
-        console.error("Request setup error:", error.message);
-      }
-    } else if (error instanceof Error) {
-      errorMessage = error.message;
-      console.error("Watch progress pre-request error:", error.message);
-    } else {
-      console.error("Unexpected error type:", error);
-    }
-    return { success: false, watchHistory: {} as EpisodeWatchHistory };
-  }
 }
 
 /**
@@ -383,35 +423,78 @@ export async function saveWatchProgress(
  * @returns Watch history items and pagination data
  */
 export async function getWatchHistory(
-  page: number = 1,
-  limit: number = 20
-): Promise<{data: EpisodeWatchHistory[], pagination: any} | null> {
-  try {
-    const tokenResult = await getIdToken(true);
-    
-    if (!tokenResult.success || !tokenResult.data) {
-      console.error("Failed to get ID token for fetching watch history:", tokenResult.error?.message);
-      return null;
-    }
-    
-    const params = {
-      page,
-      limit: Math.min(limit, 50)
-    };
-    
-    const response = await axios.get(
-      `${API_URL}/api/public/user-movie/watch-history`,
-      { 
-        params,
-        headers: {
-          Authorization: `Bearer ${tokenResult.data}`
+    page: number = 1,
+    limit: number = 20
+): Promise<{ data: EpisodeWatchHistory[]; pagination: any } | null> {
+    try {
+        const tokenResult = await getIdToken(true);
+
+        if (!tokenResult.success || !tokenResult.data) {
+            console.error(
+                "Failed to get ID token for fetching watch history:",
+                tokenResult.error?.message
+            );
+            return null;
         }
-      }
-    );
-    
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching watch history:", error);
-    return null;
-  }
+
+        const params = {
+            page,
+            limit: Math.min(limit, 50),
+        };
+
+        const response = await axios.get(
+            `${API_URL}/api/public/user-movie/watch-history`,
+            {
+                params,
+                headers: {
+                    Authorization: `Bearer ${tokenResult.data}`,
+                },
+            }
+        );
+
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching watch history:", error);
+        return null;
+    }
+}
+
+/**
+ * Get watch history for a specific episode
+ * @param episodeId The ID of the episode to get watch history for
+ * @returns Episode watch history data or null on error
+ */
+export async function getEpisodeWatchHistory(
+    episodeId: string
+): Promise<EpisodeWatchHistoryResponse | null> {
+    try {
+        if (!episodeId) {
+            throw new Error("Episode ID is required");
+        }
+
+        const tokenResult = await getIdToken(true);
+
+        if (!tokenResult.success || !tokenResult.data) {
+            console.error(
+                "Failed to get ID token for fetching episode watch history:",
+                tokenResult.error?.message
+            );
+            return null;
+        }
+
+        const response = await axios.post(
+            `${API_URL}/api/public/user-movie/watch-history/episode`,
+            {
+                episodeId,
+                idToken: tokenResult.data,
+            }
+        );
+
+        console.log("Episode watch history response:", response.data);
+
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching episode watch history:", error);
+        return null;
+    }
 }

@@ -46,6 +46,10 @@ export default function MainLayout() {
         name="downloaded-player"
         options={{ headerShown: false }}
       />
+      <Stack.Screen
+        name="watch-history"
+        options={{ headerShown: false }}
+      />
     </Stack>
   );
 }

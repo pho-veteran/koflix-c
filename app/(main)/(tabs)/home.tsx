@@ -4,7 +4,13 @@ import { StatusBar } from "expo-status-bar";
 import { Text } from "@/components/ui/text";
 import { VStack } from "@/components/ui/vstack";
 import { useAuth } from "@/providers/auth-context";
-import { getTrendingMovies, getRecentlyAddedMovies, getRecommendedMovies } from "@/api/recommendations";
+import { 
+  getTrendingMovies, 
+  getRecentlyAddedMovies, 
+  getRecommendedMovies,
+  getRecentLiked,
+  getRecentWatched
+} from "@/api/recommendations";
 import { MovieBase } from "@/types/movie-type";
 import PosterSection from "@/components/movies/poster-section";
 import ThumbnailSection from "@/components/movies/thumbnail-section";
@@ -25,6 +31,8 @@ export default function HomePage() {
   const [trendingMovies, setTrendingMovies] = useState<MovieBase[]>([]);
   const [recentMovies, setRecentMovies] = useState<MovieBase[]>([]);
   const [recommendedMovies, setRecommendedMovies] = useState<MovieBase[]>([]);
+  const [recentlyLikedMovies, setRecentlyLikedMovies] = useState<MovieBase[]>([]);
+  const [recentlyWatchedMovies, setRecentlyWatchedMovies] = useState<MovieBase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -37,15 +45,20 @@ export default function HomePage() {
         setIsLoading(true);
       }
 
-      const [trending, recent, recommended] = await Promise.all([
+      // Execute all requests in parallel
+      const [trending, recent, recommended, recentlyLiked, recentlyWatched] = await Promise.all([
         getTrendingMovies(),
         getRecentlyAddedMovies(24),
-        getRecommendedMovies()
+        getRecommendedMovies(),
+        getRecentLiked(),
+        getRecentWatched()
       ]);
 
       setTrendingMovies(trending);
       setRecentMovies(recent);
       setRecommendedMovies(recommended);
+      setRecentlyLikedMovies(recentlyLiked);
+      setRecentlyWatchedMovies(recentlyWatched);
       setError("");
     } catch (err) {
       console.error("Error fetching movies:", err);
@@ -67,6 +80,9 @@ export default function HomePage() {
     return () => {
       setTrendingMovies([]);
       setRecentMovies([]);
+      setRecommendedMovies([]);
+      setRecentlyLikedMovies([]);
+      setRecentlyWatchedMovies([]);
     };
   }, [user?.id]);
 
@@ -156,24 +172,40 @@ export default function HomePage() {
         />
 
         <VStack space="md" className="px-4 mb-6">
-          {/* Recommended For You Section - Using PosterSection */}
+          {/* Recommended For You Section */}
           {user?.id && recommendedMovies.length > 0 && (
-            <View>
-              <PosterSection
-                title="Đề Xuất Cho Bạn"
-                movies={recommendedMovies}
-                emptyText="Đang xây dựng đề xuất cho bạn..."
-              />
-            </View>
+            <PosterSection
+              title="Đề Xuất Cho Bạn"
+              movies={recommendedMovies}
+              emptyText="Đang xây dựng đề xuất cho bạn..."
+            />
+          )}
+
+          {/* Because You Watched Section */}
+          {user?.id && recentlyWatchedMovies.length > 0 && (
+            <PosterSection
+              title="Vì Bạn Đã Xem"
+              movies={recentlyWatchedMovies}
+              emptyText="Xem thêm phim để nhận đề xuất tốt hơn..."
+            />
+          )}
+
+          {/* Because You Liked Section */}
+          {user?.id && recentlyLikedMovies.length > 0 && (
+            <PosterSection
+              title="Vì Bạn Đã Thích"
+              movies={recentlyLikedMovies}
+              emptyText="Thích thêm phim để nhận đề xuất tốt hơn..."
+            />
           )}
 
           {/* Recently Added Section - Using ThumbnailSection */}
-            <ThumbnailSection
-              title="Mới Cập Nhật"
-              movies={recentMovies}
-              emptyText="Không có phim mới cập nhật."
-              columns={1}
-            />
+          <ThumbnailSection
+            title="Mới Cập Nhật"
+            movies={recentMovies}
+            emptyText="Không có phim mới cập nhật."
+            columns={1}
+          />
         </VStack>
       </ScrollView>
 

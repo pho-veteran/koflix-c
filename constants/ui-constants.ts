@@ -12,6 +12,7 @@ export const SCREEN_HEIGHT = height;
 
 // Header layout
 export const HEADER_HEIGHT = 60; // Standard header height
+export const MOVIE_DETAIL_HEADER_HEIGHT = 60; // Height for movie detail back button area
 
 // Carousel constants
 export const CAROUSEL_HEIGHT = width * 0.65;
@@ -79,12 +80,6 @@ export const GRADIENTS = {
 
     HEADER_OPACITY_INPUT_RANGE: [0, 50, 100] as const,
     HEADER_OPACITY_OUTPUT_RANGE: [0, 0.85, 0.98] as const,
-};
-
-// Parallax mode config
-export const PARALLAX_CONFIG = {
-    SCALE: 0.95,
-    OFFSET: 40,
 };
 
 // Grid display configurations

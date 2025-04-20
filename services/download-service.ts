@@ -201,6 +201,28 @@ export const initializeDownloadService = async () => {
     await StorageService.ensureDownloadDirExists();
     await StorageService.ensureDownloadJSONData();
 
+    // Mark any interrupted downloads as cancelled
+    const interruptedTasks = StorageService.getAllTasks().filter(
+        task => task.status === DownloadStatus.DOWNLOADING
+    );
+
+    if (interruptedTasks.length > 0) {
+        for (const task of interruptedTasks) {
+            StorageService.updateTaskState(task.id, {
+                status: DownloadStatus.CANCELLED,
+                error: "Download cancelled due to app closure",
+                ffmpegSessionId: undefined,
+            });
+            
+            // Clean up any partial files
+            try {
+                await StorageService.deleteFile(task.filePath);
+            } catch (error) {
+                console.warn(`Could not delete partial file for ${task.id}:`, error);
+            }
+        }
+    }
+
     await NotificationService.initializeNotifications();
 
     netInfoUnsubscribe = NetInfo.addEventListener(handleConnectivityChange);

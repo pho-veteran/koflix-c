@@ -40,8 +40,6 @@ export interface MovieInteraction {
 export interface EpisodeWatchHistory {
     id: string;
     userId: string;
-    movieId: string;
-    episodeServerId: string;
     progress: number;
     durationWatched: number;
     watchedAt: string;
@@ -63,5 +61,22 @@ export interface EpisodeWatchHistory {
             name: string;
             slug: string;
         };
+    };
+}
+
+export interface UnmappedEpisodeWatchHistory {
+    id: string;
+    progress: number;
+    durationWatched: number;
+    watchedAt: string;
+    episodeServerId: string;
+    serverName: string;
+}
+
+export interface EpisodeWatchHistoryResponse {
+    success: boolean;
+    data: {
+        episodeId: string;
+        watchHistory: UnmappedEpisodeWatchHistory[];
     };
 }

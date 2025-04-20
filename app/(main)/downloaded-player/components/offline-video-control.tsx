@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'absolute',
-    top: '35%',
+    top: '40%',
     width: '100%',
     paddingHorizontal: 20,
   },

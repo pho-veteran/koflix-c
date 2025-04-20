@@ -21,8 +21,8 @@ interface VideoPlayerProps {
   episodeName?: string;
   posterUrl?: string;
   thumbUrl?: string;
-  playbackRate: number;  // Add this prop
-  onChangePlaybackRate: (rate: number) => void;  // Add this prop
+  playbackRate: number;
+  onChangePlaybackRate: (rate: number) => void;
 }
 
 const VideoPlayer = ({
@@ -36,8 +36,8 @@ const VideoPlayer = ({
   episodeId,
   episodeName,
   thumbUrl,
-  playbackRate,  // Add this prop
-  onChangePlaybackRate  // Add this prop
+  playbackRate,
+  onChangePlaybackRate
 }: VideoPlayerProps) => {
   const {
     videoRef,
@@ -60,7 +60,7 @@ const VideoPlayer = ({
     handleLoad,
     handleSeek,
     formatTime,
-    seekBySeconds, // Add this
+    seekBySeconds,
   } = videoPlayerHook;
 
   const handleStartSeeking = () => setIsSeeking(true);
@@ -100,7 +100,7 @@ const VideoPlayer = ({
           playInBackground={false}
           repeat={false}
           controls={false}
-          rate={playbackRate}  // Add this line
+          rate={playbackRate}
         />
       ) : (
         <View className="flex-1 bg-secondary-200 justify-center items-center">
@@ -127,8 +127,8 @@ const VideoPlayer = ({
         fadeAnim={fadeAnim}
         serverName={selectedServer?.server_name}
         formatTime={formatTime}
-        seekBySeconds={seekBySeconds} // Add this line
-        
+        seekBySeconds={seekBySeconds}
+
         // Download button props
         movieId={movieId}
         movieName={movieName}

@@ -9,11 +9,11 @@ import { router } from "expo-router";
 import SearchFilterModal from "@/components/modals/search-filter-modal";
 
 // Import components
-import SearchHeader from "./components/SearchHeader";
-import SearchResults from "./components/SearchResults";
-import Pagination from "./components/Pagination";
-import EmptyState from "./components/EmptyState";
-import LoadingState from "./components/LoadingState";
+import SearchHeader from "./components/search-header";
+import SearchResults from "./components/search-results";
+import Pagination from "./components/list-pagination"; 
+import EmptyState from "./components/empty-state";
+import LoadingState from "./components/loading-state";
 
 const SearchPage = () => {
   const insets = useSafeAreaInsets();

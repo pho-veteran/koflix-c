@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, ScrollView, ActivityIndicator, TouchableOpacity } from "react-native";
+import { View, ScrollView, ActivityIndicator, TouchableOpacity, RefreshControl } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Text } from "@/components/ui/text";
@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getMovieDetail } from "@/api/movies";
 import { MovieDetail, Episode, MovieBase, UserInteractionData } from "@/types/movie-type";
-import { NETFLIX_RED } from "@/constants/ui-constants";
+import { LOADING, MOVIE_DETAIL_HEADER_HEIGHT, NETFLIX_RED } from "@/constants/ui-constants";
 import { VStack } from "@/components/ui/vstack";
 import EpisodeSelectorModal from "@/components/modals/episode-selector-modal";
 import PosterSection from "@/components/movies/poster-section";
@@ -25,8 +25,6 @@ import MovieTrailer from "./components/movie-trailer";
 import MovieSynopsis from "./components/movie-synopsis";
 import MovieDetails from "./components/movie-details";
 
-
-
 export default function MovieDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
@@ -37,41 +35,51 @@ export default function MovieDetailScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [movieInteraction, setMovieInteraction] = useState<UserInteractionData | null>(null);
-
   const [isEpisodeModalOpen, setIsEpisodeModalOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  useEffect(() => {
-    async function fetchMovieDetails() {
-      if (!id) return;
+  const fetchMovieDetails = async (showRefreshing = false) => {
+    if (!id) return;
+
+    try {
+      if (showRefreshing) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
+
+      const movieData = await getMovieDetail(
+        id as string,
+        user?.id
+      );
+      setMovie(movieData);
+
+      if (movieData.userInteraction) {
+        setMovieInteraction(movieData.userInteraction);
+      }
 
       try {
-        setIsLoading(true);
-        const movieData = await getMovieDetail(
-          id as string,
-          user?.id
-        );
-        setMovie(movieData);
-
-        if (movieData.userInteraction) {
-          setMovieInteraction(movieData.userInteraction);
-        }
-
-        try {
-          const similar = await getSimilarMovies(id as string);
-          setSimilarMovies(similar);
-        } catch (similarErr) {
-          console.error("Error fetching similar movies:", similarErr);
-        }
-
-        setError("");
-      } catch (err) {
-        console.error("Error fetching movie details:", err);
-        setError("Không thể tải thông tin phim. Vui lòng thử lại sau.");
-      } finally {
-        setIsLoading(false);
+        const similar = await getSimilarMovies(id as string);
+        setSimilarMovies(similar);
+      } catch (similarErr) {
+        console.error("Error fetching similar movies:", similarErr);
       }
-    }
 
+      setError("");
+    } catch (err) {
+      console.error("Error fetching movie details:", err);
+      setError("Không thể tải thông tin phim. Vui lòng thử lại sau.");
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    fetchMovieDetails(true);
+  };
+
+  useEffect(() => {
     fetchMovieDetails();
   }, [id]);
 
@@ -155,7 +163,23 @@ export default function MovieDetailScreen() {
         <Ionicons name="arrow-back" size={24} color="#fff" />
       </TouchableOpacity>
 
-      <ScrollView className="flex-1">
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
+          paddingTop: 0,
+          paddingBottom: 20
+        }}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={NETFLIX_RED}
+            colors={[NETFLIX_RED]}
+            progressBackgroundColor={LOADING?.REFRESH_BACKGROUND}
+            progressViewOffset={MOVIE_DETAIL_HEADER_HEIGHT + insets.top}
+          />
+        }
+      >
         {/* Hero Section */}
         <MovieHero
           thumbUrl={movie.thumb_url}
@@ -231,6 +255,18 @@ export default function MovieDetailScreen() {
           </View>
         </VStack>
       </ScrollView>
+
+      {/* Loading overlay for refresh state */}
+      {isRefreshing && (
+        <View
+          className="absolute top-0 left-0 right-0 flex-row justify-center"
+          style={{ top: insets.top + MOVIE_DETAIL_HEADER_HEIGHT / 2 }}
+        >
+          <View className="bg-secondary-100/80 px-4 py-2 rounded-full">
+            <Text className="text-typography-950 text-xs">Đang cập nhật...</Text>
+          </View>
+        </View>
+      )}
 
       {/* Episode Selector Modal */}
       <EpisodeSelectorModal

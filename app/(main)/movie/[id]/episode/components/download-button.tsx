@@ -87,7 +87,7 @@ const DownloadButton: React.FC<DownloadButtonProps> = ({
       setIsModalOpen(true);
     } else if (downloadTask.status === DownloadStatus.COMPLETED) {
       // Play the video instead of showing the delete modal
-      router.push(`/downloaded-player/${downloadTask.id}`);
+      router.replace(`/downloaded-player/${downloadTask.id}`);
     }
   };
 

@@ -231,3 +231,59 @@ export async function getRecentType(
         return [];
     }
 }
+
+/**
+ * Fetches movie recommendations based on the user's recently liked movies.
+ * Uses a content-based recommendation algorithm analyzing genre and country preferences.
+ * @returns Promise<MovieBase[]> - Array of recommended movies based on likes.
+ */
+export async function getRecentLiked(): Promise<MovieBase[]> {
+    try {
+        const tokenResult = await getIdToken(true);
+        
+        if (!tokenResult.success || !tokenResult.data) {
+            console.warn("Cannot fetch liked-based recommendations without valid authentication.");
+            return [];
+        }
+        
+        const response = await axios.post(
+            `${API_URL}/api/public/recommendations/personalized/recently-liked`,
+            {
+                idToken: tokenResult.data
+            }
+        );
+        
+        return response.data.data;
+    } catch (error) {
+        console.error("Error fetching recommendations based on likes:", error);
+        return [];
+    }
+}
+
+/**
+ * Fetches movie recommendations based on the user's recently watched movies.
+ * Uses a content-based recommendation algorithm analyzing viewing patterns.
+ * @returns Promise<MovieBase[]> - Array of recommended movies based on watch history.
+ */
+export async function getRecentWatched(): Promise<MovieBase[]> {
+    try {
+        const tokenResult = await getIdToken(true);
+        
+        if (!tokenResult.success || !tokenResult.data) {
+            console.warn("Cannot fetch watch-based recommendations without valid authentication.");
+            return [];
+        }
+        
+        const response = await axios.post(
+            `${API_URL}/api/public/recommendations/personalized/recently-watched`,
+            {
+                idToken: tokenResult.data
+            }
+        );
+        
+        return response.data.data;
+    } catch (error) {
+        console.error("Error fetching recommendations based on watch history:", error);
+        return [];
+    }
+}

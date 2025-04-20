@@ -42,7 +42,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (userData) {
         setUser(userData);
-        console.log("User data fetched:", userData);
       } else {
         const newUser = await createOrUpdateUser({
           name: 'Koflix User',

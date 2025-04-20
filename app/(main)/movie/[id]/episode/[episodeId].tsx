@@ -1,17 +1,14 @@
-import React, { useEffect, useState } from "react";
-import {
-  View,
-  StatusBar,
-  ActivityIndicator,
-  ScrollView,
-} from "react-native";
+import React, { useEffect, useState, useRef } from "react";
+import { View, StatusBar, ActivityIndicator, ScrollView } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsFocused } from "@react-navigation/native";
 import { getMovieDetail } from "@/api/movies";
+import { trackMovieView, saveWatchProgress, getEpisodeWatchHistory } from "@/api/user-movie";
 import { VStack } from "@/components/ui/vstack";
 import { Episode, MovieDetail, EpisodeServer } from "@/types/movie-type";
 import EpisodeSelectorModal from "@/components/modals/episode-selector-modal";
+import ConfirmationModal from "@/components/modals/confirmation-modal";
 import { useAuth } from "@/providers/auth-context";
 import { NETFLIX_RED } from "@/constants/ui-constants";
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -25,77 +22,171 @@ import ServerSelector from "./components/server-selector";
 import { CommentList } from "@/components/comments";
 
 export default function EpisodePlayerScreen() {
-  const { id, episodeId } = useLocalSearchParams();
+  const { id, episodeId, serverId } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const isFocused = useIsFocused();
-  
+
   const [movie, setMovie] = useState<MovieDetail | null>(null);
   const [currentEpisode, setCurrentEpisode] = useState<Episode | null>(null);
   const [selectedServer, setSelectedServer] = useState<EpisodeServer | null>(null);
   const [isEpisodeModalOpen, setIsEpisodeModalOpen] = useState(false);
   const [previousPlayingState, setPreviousPlayingState] = useState(true);
-  const [playbackRate, setPlaybackRate] = useState(1.0); // Add playback rate state
+  const [playbackRate, setPlaybackRate] = useState(1.0);
+  
+  // Resume watch state
+  const [resumeData, setResumeData] = useState<{
+    progress: number;
+    time: number;
+    serverId: string;
+  } | null>(null);
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  
+  // View tracking reference
+  const viewTracked = useRef(false);
+  const minimumWatchTimeForView = 60;
 
   // Initialize the video player hook
   const videoPlayerHook = useVideoPlayer({
     onGoBack: async () => {
+      saveProgressImmediate();
       router.back();
     }
   });
 
   const {
     isFullscreen,
-    setIsFullscreen,
-    isPlaying, 
+    isPlaying,
     setIsPlaying,
-    showControls,
     setShowControls,
     setIsLoading: setIsVideoLoading,
-    error: videoError,
     setError: setVideoError,
-    isLoading: isVideoLoading
+    isLoading: isVideoLoading,
+    duration,
+    currentTime,
+    formatTime,
   } = videoPlayerHook;
+
+  // Fetch watch history function
+  const fetchWatchHistory = async (epId: string) => {
+    if (!epId || !user?.id || !selectedServer) return;
+    
+    try {
+      const historyData = await getEpisodeWatchHistory(epId);
+      
+      if (historyData?.success && historyData.data?.watchHistory?.length > 0) {
+        // Filter to only get history for the currently selected server
+        const serverHistory = historyData.data.watchHistory.filter(
+          item => item.episodeServerId === selectedServer.id
+        );
+        
+        if (serverHistory.length > 0) {
+          // Find the most recent watch history item for this server
+          const mostRecent = serverHistory.reduce(
+            (latest, current) => {
+              return new Date(latest.watchedAt) > new Date(current.watchedAt) 
+                ? latest 
+                : current;
+            }
+          );
+          
+          // Only prompt to resume if progress is between 5% and 95%
+          if (mostRecent.progress >= 5 && mostRecent.progress < 95) {
+            setResumeData({
+              progress: mostRecent.progress,
+              time: mostRecent.durationWatched,
+              serverId: mostRecent.episodeServerId
+            });
+            setShowResumeModal(true);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching watch history:", error);
+    }
+  };
+
+  // Save progress function
+  const saveProgressImmediate = () => {
+    if (!movie?.id || !selectedServer?.id || !currentEpisode?.id || duration <= 0) return;
+
+    const progressPercent = (currentTime / duration) * 100;
+
+    // Only save if we've watched more than 10 seconds
+    if (currentTime > 10) {
+      console.log("Saving progress on critical event:", progressPercent.toFixed(2) + "%");
+      saveWatchProgress(
+        movie.id,
+        selectedServer.id,
+        progressPercent,
+        currentTime
+      ).catch(error => {
+        console.error("Error saving watch progress:", error);
+      });
+    }
+  };
+
+  // Resume handlers
+  const handleResumeConfirm = () => {
+    if (!resumeData || !videoPlayerHook.videoRef.current || !selectedServer) return;
+    
+    // Only resume if the current server matches the resume data
+    if (resumeData.serverId === selectedServer.id) {
+      const timeToSeek = (resumeData.progress / 100) * duration || resumeData.time;
+      if (timeToSeek > 0 && videoPlayerHook.videoRef.current) {
+        videoPlayerHook.videoRef.current.seek(timeToSeek);
+      }
+    }
+    
+    setShowResumeModal(false);
+  };
+
+  const handleResumeCancel = () => {
+    setShowResumeModal(false);
+    setResumeData(null);
+  };
 
   // Pause video when episode modal is opened
   useEffect(() => {
     if (isEpisodeModalOpen) {
-      // Save the current playing state *before* pausing
       setPreviousPlayingState(isPlaying);
-      // Always pause when the modal opens
       setIsPlaying(false);
     }
-  }, [isEpisodeModalOpen, isPlaying, setIsPlaying]); // Keep dependencies, but logic changed
-
-  // Hide control when loading
-  useEffect(() => {
-    if (isVideoLoading) {
-      setShowControls(false);
-    }
-  }, [isVideoLoading, setShowControls]);
+  }, [isEpisodeModalOpen, isPlaying, setIsPlaying]);
 
   // Load movie and episode data
   useEffect(() => {
     let isMounted = true;
-    
+
     async function fetchData() {
       if (!id || !isFocused) return;
 
       try {
         const movieData = await getMovieDetail(id as string, user?.id);
-        if (!isMounted) return;
         
-        setMovie(movieData);
+        if (!isMounted) return;
 
+        setMovie(movieData);
+        
         if (movieData.episodes && movieData.episodes.length > 0) {
           // Find current episode or use the first one
           const episode = movieData.episodes.find(ep => ep.id === episodeId) || movieData.episodes[0];
           setCurrentEpisode(episode);
 
-          // Select first server if available
+          // Select server based on serverId param or use first server
           if (episode.servers && episode.servers.length > 0) {
-            setSelectedServer(episode.servers[0]);
+            if (serverId) {
+              const requestedServer = episode.servers.find(server => String(server.id) === String(serverId));
+              
+              if (requestedServer) {
+                setSelectedServer(requestedServer);
+              } else {
+                setSelectedServer(episode.servers[0]);
+              }
+            } else {
+              setSelectedServer(episode.servers[0]);
+            }
           }
         }
       } catch (err) {
@@ -107,30 +198,81 @@ export default function EpisodePlayerScreen() {
       fetchData();
     }
 
+    if (!isFocused) {
+      saveProgressImmediate();
+    }
+
     return () => {
-      isMounted = false;
+      isMounted = false;      
     };
-  }, [id, episodeId, isFocused, user?.id]);
+  }, [id, episodeId, serverId, isFocused, user?.id]);
+
+  // Add an effect to fetch watch history when the selected server changes
+  useEffect(() => {
+    if (currentEpisode?.id && user?.id && selectedServer) {
+      fetchWatchHistory(currentEpisode.id);
+    }
+  }, [selectedServer, currentEpisode?.id, user?.id]);
 
   const handleVideoLoaded = () => {
     setIsVideoLoading(false);
     setShowControls(true);
-    
+
     const timer = setTimeout(() => {
       setShowControls(false);
     }, 3000);
-    
+
     return () => clearTimeout(timer);
   };
 
+  const handleVideoProgress = (data: any) => {
+    // Call the original progress handler from the hook
+    videoPlayerHook.handleProgress(data);
+
+    // View track
+    if (!viewTracked.current &&
+      data.currentTime >= minimumWatchTimeForView &&
+      movie?.id) {
+
+      viewTracked.current = true;
+
+      trackMovieView(movie.id);
+    }
+  };
+
   const handleEpisodeSelect = (episode: Episode) => {
+    // Save current progress before switching
+    saveProgressImmediate();
+
     if (id && episode.id !== episodeId) {
-      router.replace(`/movie/${id}/episode/${episode.id}`);
+      // If we have a selected server, maintain server selection pattern across episodes when possible
+      if (selectedServer) {
+        const preferredServerName = selectedServer.server_name;
+        // Try to find a server with the same name in the new episode
+        const matchingServer = episode.servers?.find(server => server.server_name === preferredServerName);
+        
+        if (matchingServer) {
+          router.replace(`/movie/${id}/episode/${episode.id}?serverId=${matchingServer.id}`);
+        } else {
+          router.replace(`/movie/${id}/episode/${episode.id}`);
+        }
+      } else {
+        router.replace(`/movie/${id}/episode/${episode.id}`);
+      }
     }
     setIsEpisodeModalOpen(false);
   };
 
+  // Handle server selection
   const handleServerSelect = (server: EpisodeServer) => {
+    // Save current progress before switching
+    saveProgressImmediate();
+
+    // Update URL to include selected server for better history tracking
+    if (id && episodeId) {
+      router.replace(`/movie/${id}/episode/${episodeId}?serverId=${server.id}`);
+    }
+    
     setSelectedServer(server);
     setIsVideoLoading(true);
     setVideoError("");
@@ -138,6 +280,9 @@ export default function EpisodePlayerScreen() {
 
   const navigateToEpisode = (direction: 'prev' | 'next') => {
     if (!movie?.episodes?.length || !currentEpisode) return;
+
+    // Save progress before navigation
+    saveProgressImmediate();
 
     const currentIndex = movie.episodes.findIndex(ep => ep.id === currentEpisode.id);
     if (currentIndex === -1) return;
@@ -154,7 +299,7 @@ export default function EpisodePlayerScreen() {
     }
   };
 
-  // If not focused, don't render anything (unmount component)
+  // If not focused, unmount
   if (!isFocused) {
     return null;
   }
@@ -186,15 +331,18 @@ export default function EpisodePlayerScreen() {
       <VideoPlayer
         selectedServer={selectedServer}
         isFullscreen={isFullscreen}
-        videoPlayerHook={videoPlayerHook}
+        videoPlayerHook={{
+          ...videoPlayerHook,
+          handleProgress: handleVideoProgress,
+        }}
         onOpenEpisodeModal={() => setIsEpisodeModalOpen(true)}
         onVideoLoaded={handleVideoLoaded}
-        movieId={movie.id}
-        movieName={movie.name}
-        episodeId={currentEpisode.id}
-        episodeName={currentEpisode.name}
-        posterUrl={movie.poster_url}
-        thumbUrl={movie.thumb_url}
+        movieId={movie?.id}
+        movieName={movie?.name}
+        episodeId={currentEpisode?.id}
+        episodeName={currentEpisode?.name}
+        posterUrl={movie?.poster_url}
+        thumbUrl={movie?.thumb_url}
         playbackRate={playbackRate}
         onChangePlaybackRate={setPlaybackRate}
       />
@@ -222,11 +370,11 @@ export default function EpisodePlayerScreen() {
                 selectedServer={selectedServer}
                 onSelectServer={handleServerSelect}
               />
-              
+
               {/* Comments Section */}
               <View className="mt-4">
-                <CommentList 
-                  episodeId={currentEpisode.id} 
+                <CommentList
+                  episodeId={currentEpisode.id}
                   movieId={movie.id}
                 />
               </View>
@@ -247,6 +395,19 @@ export default function EpisodePlayerScreen() {
           status={movie.status}
           onSelectEpisode={handleEpisodeSelect}
           isFullscreen={isFullscreen}
+        />
+      )}
+
+      {/* Resume Playback Modal */}
+      {isFocused && resumeData && (
+        <ConfirmationModal
+          isOpen={showResumeModal}
+          onClose={handleResumeCancel}
+          onConfirm={handleResumeConfirm}
+          confirmationType="info"
+          title="Tiếp tục xem"
+          message={`Bạn muốn tiếp tục xem từ ${formatTime((resumeData.progress / 100) * duration || resumeData.time)}?`}
+          confirmText="Tiếp tục xem"
         />
       )}
     </View>

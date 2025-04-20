@@ -21,6 +21,7 @@ import { useDownload } from "@/providers/download-context";
 import { DownloadStatus, DownloadTask } from "@/types/download-type";
 import ConfirmationModal from "@/components/modals/confirmation-modal";
 import { useIsFocused } from "@react-navigation/native";
+import WatchHistoryItem from "../watch-history/components/watch-history-item";
 
 const getRoleBadgeConfig = (role?: string) => {
   switch (role) {
@@ -131,7 +132,7 @@ const ProfilePage = () => {
   };
 
   const navigateToWatchHistory = () => {
-    Alert.alert("Thông báo", "Tính năng đang được phát triển");
+    router.push("/watch-history");
   };
 
   if (isLoading) {
@@ -256,47 +257,19 @@ const ProfilePage = () => {
           {watchHistory.length > 0 ? (
             <VStack space="sm">
               {watchHistory.map((item) => (
-                <TouchableOpacity
+                <WatchHistoryItem
                   key={item.id}
-                  className="bg-secondary-200/30 rounded-lg p-3 flex-row"
-                  onPress={() => router.push(`/movie/${item.movieId}/episode/${item.episodeServer?.episode?.id}`)}
-                >
-                  <View className="w-20 h-20 rounded-lg bg-secondary-300/50 mr-3 overflow-hidden">
-                    {item.movie?.thumb_url ? (
-                      <Image
-                        source={{ uri: item.movie.thumb_url }}
-                        className="w-full h-full"
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <View className="w-full h-full items-center justify-center">
-                        <Ionicons name="film-outline" size={24} color="#9ca3af" />
-                      </View>
-                    )}
-                  </View>
-
-                  <VStack className="flex-1 justify-center">
-                    <Text className="text-typography-800 font-medium" numberOfLines={1}>
-                      {item.movie?.name || "Không xác định"}
-                    </Text>
-                    <Text className="text-typography-600 text-sm" numberOfLines={1}>
-                      {item.episodeServer?.episode?.name
-                        ? `Tập ${item.episodeServer.episode.name}`
-                        : ""}
-                    </Text>
-
-                    {/* Progress bar */}
-                    <View className="h-1.5 bg-secondary-300/30 rounded-full mt-2 overflow-hidden">
-                      <View
-                        className="h-full bg-primary-400 rounded-full"
-                        style={{ width: `${item.progress}%` }}
-                      />
-                    </View>
-                    <Text className="text-typography-500 text-xs mt-1">
-                      {item.progress}% hoàn thành
-                    </Text>
-                  </VStack>
-                </TouchableOpacity>
+                  item={item}
+                  onPress={() => {
+                    if (item.movie?.id && item.episodeServer?.episode?.id && item.episodeServer.id) {
+                      router.push(
+                        `/movie/${item.movie.id}/episode/${item.episodeServer.episode.id}?serverId=${item.episodeServer.id}`
+                      );
+                    } else {
+                      console.error("Missing required navigation data", item);
+                    }
+                  }}
+                />
               ))}
             </VStack>
           ) : (
