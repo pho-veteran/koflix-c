@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { Comment } from '@/types/user-movie-type';
-import ReplySection from './ReplySection';
+import ReplySection from './reply-section';
 
 interface CommentItemProps {
   comment: Comment;

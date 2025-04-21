@@ -7,8 +7,8 @@ import { HStack } from '@/components/ui/hstack';
 import { Ionicons } from '@expo/vector-icons';
 import { getComments } from '@/api/user-movie';
 import { Comment } from '@/types/user-movie-type';
-import CommentItem from './CommentItem';
-import CommentInput from './CommentInput';
+import CommentItem from './comment-item'; 
+import CommentInput from './comment-input'; 
 import { useAuth } from '@/providers/auth-context';
 import { useRouter } from 'expo-router';
 

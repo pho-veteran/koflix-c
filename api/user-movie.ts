@@ -378,8 +378,6 @@ export async function saveWatchProgress(
             payload.durationWatched = durationWatched;
         }
 
-        console.log("Saving watch progress:", payload);
-
         const response = await axios.post(
             `${API_URL}/api/public/user-movie/watch-history`,
             payload

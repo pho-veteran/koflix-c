@@ -4,11 +4,11 @@ import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { Text } from '@/components/ui/text';
 import { Ionicons } from '@expo/vector-icons';
-import { getReplies, createReply } from '@/api/user-movie';
+import { getReplies } from '@/api/user-movie';
 import { formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { Reply } from '@/types/user-movie-type';
-import CommentInput from './CommentInput';
+import CommentInput from './comment-input'; 
 import Animated, { FadeIn, SlideInLeft } from 'react-native-reanimated';
 
 interface ReplySectionProps {
@@ -19,7 +19,6 @@ interface ReplySectionProps {
 const ReplySection: React.FC<ReplySectionProps> = ({ commentId, currentUserId }) => {
   const [replies, setReplies] = useState<Reply[]>([]);
   const [loading, setLoading] = useState(true);
-  const [replyText, setReplyText] = useState('');
   const [showOptions, setShowOptions] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
