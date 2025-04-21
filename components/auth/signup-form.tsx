@@ -5,9 +5,9 @@ import { useRouter } from "expo-router";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLoading } from '@/hooks/use-loading';
-import { TouchableOpacity, View } from "react-native";
+import { TouchableOpacity } from "react-native";
 
-import { signUpWithEmailAndPassword, startPhoneAuth } from "@/lib/firebase-auth";
+import { signUpWithEmailAndPassword, startPhoneAuth, signOut } from "@/lib/firebase-auth";
 import { emailValidator, phoneValidator, passwordStrengthValidator } from "@/lib/validation";
 
 import { Button, ButtonText, ButtonSpinner } from "../ui/button";
@@ -43,31 +43,32 @@ const phoneSchema = z.object({
   phone: phoneValidator
 });
 
-const SignupForm = () => {
-  const router = useRouter();
+// Types for form submissions
+type EmailFormData = z.infer<typeof emailSchema>;
+type PhoneFormData = z.infer<typeof phoneSchema>;
+
+// Types for form component props
+interface EmailFormProps {
+  onSubmit: (data: EmailFormData) => Promise<void>;
+}
+
+interface PhoneFormProps {
+  onSubmit: (data: PhoneFormData) => Promise<void>;
+}
+
+// Email Form Component with proper typing
+const EmailSignupForm = ({ onSubmit }: EmailFormProps) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { setIsLoading, setMessage } = useLoading();
-  const [signupMethod, setSignupMethod] = useState<'email' | 'phone'>('email');
 
-  // Email form
-  const emailForm = useForm({
+  const emailForm = useForm<EmailFormData>({
     resolver: zodResolver(emailSchema),
     defaultValues: {
       name: "",
       email: "",
       password: "",
       confirmPassword: ""
-    }
-  });
-
-  // Phone form
-  const phoneForm = useForm({
-    resolver: zodResolver(phoneSchema),
-    defaultValues: {
-      name: "",
-      phone: ""
     }
   });
 
@@ -79,8 +80,294 @@ const SignupForm = () => {
     setShowConfirmPassword(prev => !prev);
   };
 
-  const handleEmailSignup = async (data: z.infer<typeof emailSchema>) => {
+  const handleSubmit = async (data: EmailFormData) => {
     setError(null);
+    try {
+      await onSubmit(data);
+    } catch (err) {
+      const error = err as Error;
+      setError(error.message || "An unexpected error occurred");
+    }
+  };
+
+  return (
+    <VStack className="w-full">
+      {error && (
+        <FormControl isInvalid={true} className="mb-2">
+          <FormControlError className="justify-center">
+            <FormControlErrorIcon as={AlertTriangle} />
+            <FormControlErrorText>{error}</FormControlErrorText>
+          </FormControlError>
+        </FormControl>
+      )}
+
+      <VStack space="xl" className="w-full">
+        <FormControl
+          isInvalid={!!emailForm.formState.errors.name}
+          className="w-full"
+        >
+          <FormControlLabel>
+            <FormControlLabelText>Tên của bạn</FormControlLabelText>
+          </FormControlLabel>
+          <Controller
+            name="name"
+            control={emailForm.control}
+            render={({ field: { onChange, onBlur, value } }) => (
+              <Input>
+                <InputField
+                  placeholder="Nhập tên của bạn..."
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                />
+              </Input>
+            )}
+          />
+          <FormControlError>
+            <FormControlErrorIcon as={AlertTriangle} />
+            <FormControlErrorText>
+              {emailForm.formState.errors.name?.message}
+            </FormControlErrorText>
+          </FormControlError>
+        </FormControl>
+
+        <FormControl
+          isInvalid={!!emailForm.formState.errors.email}
+          className="w-full"
+        >
+          <FormControlLabel>
+            <FormControlLabelText>Email</FormControlLabelText>
+          </FormControlLabel>
+          <Controller
+            name="email"
+            control={emailForm.control}
+            render={({ field: { onChange, onBlur, value } }) => (
+              <Input>
+                <InputField
+                  placeholder="Nhập email của bạn..."
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </Input>
+            )}
+          />
+          <FormControlError>
+            <FormControlErrorIcon as={AlertTriangle} />
+            <FormControlErrorText>
+              {emailForm.formState.errors.email?.message}
+            </FormControlErrorText>
+          </FormControlError>
+        </FormControl>
+
+        <FormControl
+          isInvalid={!!emailForm.formState.errors.password}
+          className="w-full"
+        >
+          <FormControlLabel>
+            <FormControlLabelText>Mật khẩu</FormControlLabelText>
+          </FormControlLabel>
+          <Controller
+            name="password"
+            control={emailForm.control}
+            render={({ field: { onChange, onBlur, value } }) => (
+              <Input>
+                <InputField
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Nhập mật khẩu..."
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                />
+                <InputSlot onPress={handleTogglePassword} className="pr-3">
+                  <InputIcon as={showPassword ? EyeIcon : EyeOffIcon} />
+                </InputSlot>
+              </Input>
+            )}
+          />
+          <FormControlError>
+            <FormControlErrorIcon as={AlertTriangle} />
+            <FormControlErrorText>
+              {emailForm.formState.errors.password?.message}
+            </FormControlErrorText>
+          </FormControlError>
+        </FormControl>
+
+        <FormControl
+          isInvalid={!!emailForm.formState.errors.confirmPassword}
+          className="w-full"
+        >
+          <FormControlLabel>
+            <FormControlLabelText>Xác nhận mật khẩu</FormControlLabelText>
+          </FormControlLabel>
+          <Controller
+            name="confirmPassword"
+            control={emailForm.control}
+            render={({ field: { onChange, onBlur, value } }) => (
+              <Input>
+                <InputField
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Nhập lại mật khẩu..."
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                />
+                <InputSlot onPress={handleToggleConfirmPassword} className="pr-3">
+                  <InputIcon as={showConfirmPassword ? EyeIcon : EyeOffIcon} />
+                </InputSlot>
+              </Input>
+            )}
+          />
+          <FormControlError>
+            <FormControlErrorIcon as={AlertTriangle} />
+            <FormControlErrorText>
+              {emailForm.formState.errors.confirmPassword?.message}
+            </FormControlErrorText>
+          </FormControlError>
+        </FormControl>
+      </VStack>
+
+      <Button
+        variant="solid"
+        size="lg"
+        isDisabled={emailForm.formState.isSubmitting}
+        onPress={emailForm.handleSubmit(handleSubmit)}
+        className="w-full mt-8 bg-primary-400"
+      >
+        {emailForm.formState.isSubmitting ? (
+          <ButtonSpinner color="white" />
+        ) : (
+          <ButtonText className="text-typography-950">Đăng ký</ButtonText>
+        )}
+      </Button>
+    </VStack>
+  );
+};
+
+// Phone Form Component with proper typing
+const PhoneSignupForm = ({ onSubmit }: PhoneFormProps) => {
+  const [error, setError] = useState<string | null>(null);
+
+  const phoneForm = useForm<PhoneFormData>({
+    resolver: zodResolver(phoneSchema),
+    defaultValues: {
+      name: "",
+      phone: ""
+    }
+  });
+
+  const handleSubmit = async (data: PhoneFormData) => {
+    setError(null);
+    try {
+      await onSubmit(data);
+    } catch (err) {
+      const error = err as Error;
+      setError(error.message || "An unexpected error occurred");
+    }
+  };
+
+  return (
+    <VStack className="w-full">
+      {error && (
+        <FormControl isInvalid={true} className="mb-2">
+          <FormControlError className="justify-center">
+            <FormControlErrorIcon as={AlertTriangle} />
+            <FormControlErrorText>{error}</FormControlErrorText>
+          </FormControlError>
+        </FormControl>
+      )}
+
+      <VStack space="xl" className="w-full">
+        <FormControl
+          isInvalid={!!phoneForm.formState.errors.name}
+          className="w-full"
+        >
+          <FormControlLabel>
+            <FormControlLabelText>Tên của bạn</FormControlLabelText>
+          </FormControlLabel>
+          <Controller
+            name="name"
+            control={phoneForm.control}
+            render={({ field: { onChange, onBlur, value } }) => (
+              <Input>
+                <InputField
+                  placeholder="Nhập tên của bạn..."
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                />
+              </Input>
+            )}
+          />
+          <FormControlError>
+            <FormControlErrorIcon as={AlertTriangle} />
+            <FormControlErrorText>
+              {phoneForm.formState.errors.name?.message}
+            </FormControlErrorText>
+          </FormControlError>
+        </FormControl>
+
+        <FormControl
+          isInvalid={!!phoneForm.formState.errors.phone}
+          className="w-full"
+        >
+          <FormControlLabel>
+            <FormControlLabelText>Số điện thoại</FormControlLabelText>
+          </FormControlLabel>
+          <Controller
+            name="phone"
+            control={phoneForm.control}
+            render={({ field: { onChange, onBlur, value } }) => (
+              <Input>
+                <InputField
+                  placeholder="Nhập số điện thoại..."
+                  value={value}
+                  onChangeText={(text) => {
+                    // Allow only numeric input
+                    const numericText = text.replace(/[^0-9]/g, '');
+                    onChange(numericText);
+                  }}
+                  onBlur={onBlur}
+                  keyboardType="phone-pad"
+                />
+              </Input>
+            )}
+          />
+          <FormControlError>
+            <FormControlErrorIcon as={AlertTriangle} />
+            <FormControlErrorText>
+              {phoneForm.formState.errors.phone?.message}
+            </FormControlErrorText>
+          </FormControlError>
+        </FormControl>
+      </VStack>
+
+      <Button
+        variant="solid"
+        size="lg"
+        isDisabled={phoneForm.formState.isSubmitting}
+        onPress={phoneForm.handleSubmit(handleSubmit)}
+        className="w-full mt-8 bg-primary-400"
+      >
+        {phoneForm.formState.isSubmitting ? (
+          <ButtonSpinner color="white" />
+        ) : (
+          <ButtonText className="text-typography-950">Đăng ký</ButtonText>
+        )}
+      </Button>
+    </VStack>
+  );
+};
+
+// Main Component
+const SignupForm = () => {
+  const router = useRouter();
+  const [signupMethod, setSignupMethod] = useState<'email' | 'phone'>('email');
+  const { setIsLoading, setMessage } = useLoading();
+
+  const handleEmailSignup = async (data: z.infer<typeof emailSchema>) => {
     setIsLoading(true);
     setMessage("Đang tạo tài khoản...");
 
@@ -92,37 +379,33 @@ const SignupForm = () => {
       );
 
       if (!signupResult.success) {
-        setError(signupResult.error?.message || "Đăng ký không thành công");
-        return;
+        throw new Error(signupResult.error?.message || "Đăng ký không thành công");
       }
 
-      try {
-        if (!signupResult.data) {
-          throw new Error("Không nhận được thông tin người dùng sau khi đăng ký");
-        }
-
-        setMessage("Đang cập nhật thông tin người dùng...");
-        await createOrUpdateUser({
-          name: data.name,
-          emailOrPhone: data.email
-        });
-
-        setMessage("Đăng ký thành công!");
-        router.replace("/(main)/(tabs)/home");
-      } catch (error) {
-        setError("Đã đăng ký thành công nhưng không thể cập nhật thông tin người dùng.");
+      if (!signupResult.data) {
+        throw new Error("Không nhận được thông tin người dùng sau khi đăng ký");
       }
+
+      setMessage("Đang cập nhật thông tin người dùng...");
+      await createOrUpdateUser({
+        name: data.name,
+        emailOrPhone: data.email
+      });
+
+      // Log the user out after signup
+      setMessage("Đăng ký thành công! Đang chuyển hướng đến trang đăng nhập..."); 
+      await signOut();
+
+      router.replace("/(auth)/login");
     } catch (error) {
       console.error("Signup error:", error);
-      setError("Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau.");
+      throw error;
     } finally {
       setIsLoading(false);
-      setMessage("");
     }
   };
 
   const handlePhoneSignup = async (data: z.infer<typeof phoneSchema>) => {
-    setError(null);
     setIsLoading(true);
     setMessage("Đang gửi mã xác thực đến điện thoại...");
 
@@ -130,8 +413,7 @@ const SignupForm = () => {
       const phoneAuthResult = await startPhoneAuth(data.phone);
 
       if (!phoneAuthResult.success) {
-        setError(phoneAuthResult.error?.message || "Không thể gửi mã xác thực đến số điện thoại này");
-        return;
+        throw new Error(phoneAuthResult.error?.message || "Không thể gửi mã xác thực đến số điện thoại này");
       }
 
       router.push({
@@ -144,7 +426,7 @@ const SignupForm = () => {
       });
     } catch (error) {
       console.error("Phone signup error:", error);
-      setError("Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau.");
+      throw error;
     } finally {
       setIsLoading(false);
       setMessage("");
@@ -166,16 +448,16 @@ const SignupForm = () => {
 
       {/* Signup Method Toggle */}
       <HStack className="bg-secondary-300/20 p-1 rounded-xl mb-4">
-        <TouchableOpacity 
-          className={`flex-1 p-3 rounded-lg ${signupMethod === 'email' ? 'bg-primary-400' : 'bg-transparent'}`} 
+        <TouchableOpacity
+          className={`flex-1 p-3 rounded-lg ${signupMethod === 'email' ? 'bg-primary-400' : 'bg-transparent'}`}
           onPress={() => setSignupMethod('email')}
         >
           <Text className={`text-center font-medium ${signupMethod === 'email' ? 'text-typography-950' : 'text-typography-700'}`}>
             Email
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          className={`flex-1 p-3 rounded-lg ${signupMethod === 'phone' ? 'bg-primary-400' : 'bg-transparent'}`} 
+        <TouchableOpacity
+          className={`flex-1 p-3 rounded-lg ${signupMethod === 'phone' ? 'bg-primary-400' : 'bg-transparent'}`}
           onPress={() => setSignupMethod('phone')}
         >
           <Text className={`text-center font-medium ${signupMethod === 'phone' ? 'text-typography-950' : 'text-typography-700'}`}>
@@ -184,236 +466,10 @@ const SignupForm = () => {
         </TouchableOpacity>
       </HStack>
 
-      {error && (
-        <FormControl isInvalid={true} className="mb-2">
-          <FormControlError className="justify-center">
-            <FormControlErrorIcon as={AlertTriangle} />
-            <FormControlErrorText>{error}</FormControlErrorText>
-          </FormControlError>
-        </FormControl>
-      )}
-
       {signupMethod === 'email' ? (
-        <VStack className="w-full">
-          <VStack space="xl" className="w-full">
-            <FormControl
-              isInvalid={!!emailForm.formState.errors.name}
-              className="w-full"
-            >
-              <FormControlLabel>
-                <FormControlLabelText>Tên của bạn</FormControlLabelText>
-              </FormControlLabel>
-              <Controller
-                name="name"
-                control={emailForm.control}
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <Input>
-                    <InputField
-                      placeholder="Nhập tên của bạn..."
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                    />
-                  </Input>
-                )}
-              />
-              <FormControlError>
-                <FormControlErrorIcon as={AlertTriangle} />
-                <FormControlErrorText>
-                  {emailForm.formState.errors.name?.message}
-                </FormControlErrorText>
-              </FormControlError>
-            </FormControl>
-
-            <FormControl
-              isInvalid={!!emailForm.formState.errors.email}
-              className="w-full"
-            >
-              <FormControlLabel>
-                <FormControlLabelText>Email</FormControlLabelText>
-              </FormControlLabel>
-              <Controller
-                name="email"
-                control={emailForm.control}
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <Input>
-                    <InputField
-                      placeholder="Nhập email của bạn..."
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                    />
-                  </Input>
-                )}
-              />
-              <FormControlError>
-                <FormControlErrorIcon as={AlertTriangle} />
-                <FormControlErrorText>
-                  {emailForm.formState.errors.email?.message}
-                </FormControlErrorText>
-              </FormControlError>
-            </FormControl>
-
-            <FormControl
-              isInvalid={!!emailForm.formState.errors.password}
-              className="w-full"
-            >
-              <FormControlLabel>
-                <FormControlLabelText>Mật khẩu</FormControlLabelText>
-              </FormControlLabel>
-              <Controller
-                name="password"
-                control={emailForm.control}
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <Input>
-                    <InputField
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Nhập mật khẩu..."
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                    />
-                    <InputSlot onPress={handleTogglePassword} className="pr-3">
-                      <InputIcon as={showPassword ? EyeIcon : EyeOffIcon} />
-                    </InputSlot>
-                  </Input>
-                )}
-              />
-              <FormControlError>
-                <FormControlErrorIcon as={AlertTriangle} />
-                <FormControlErrorText>
-                  {emailForm.formState.errors.password?.message}
-                </FormControlErrorText>
-              </FormControlError>
-            </FormControl>
-
-            <FormControl
-              isInvalid={!!emailForm.formState.errors.confirmPassword}
-              className="w-full"
-            >
-              <FormControlLabel>
-                <FormControlLabelText>Xác nhận mật khẩu</FormControlLabelText>
-              </FormControlLabel>
-              <Controller
-                name="confirmPassword"
-                control={emailForm.control}
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <Input>
-                    <InputField
-                      type={showConfirmPassword ? "text" : "password"}
-                      placeholder="Nhập lại mật khẩu..."
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                    />
-                    <InputSlot onPress={handleToggleConfirmPassword} className="pr-3">
-                      <InputIcon as={showConfirmPassword ? EyeIcon : EyeOffIcon} />
-                    </InputSlot>
-                  </Input>
-                )}
-              />
-              <FormControlError>
-                <FormControlErrorIcon as={AlertTriangle} />
-                <FormControlErrorText>
-                  {emailForm.formState.errors.confirmPassword?.message}
-                </FormControlErrorText>
-              </FormControlError>
-            </FormControl>
-          </VStack>
-
-          <Button
-            variant="solid"
-            size="lg"
-            isDisabled={emailForm.formState.isSubmitting}
-            onPress={emailForm.handleSubmit(handleEmailSignup)}
-            className="w-full mt-8 bg-primary-400"
-          >
-            {emailForm.formState.isSubmitting ? (
-              <ButtonSpinner color="white" />
-            ) : (
-              <ButtonText className="text-typography-950">Đăng ký</ButtonText>
-            )}
-          </Button>
-        </VStack>
+        <EmailSignupForm onSubmit={handleEmailSignup} />
       ) : (
-        <VStack className="w-full">
-          <VStack space="xl" className="w-full">
-            <FormControl
-              isInvalid={!!phoneForm.formState.errors.name}
-              className="w-full"
-            >
-              <FormControlLabel>
-                <FormControlLabelText>Tên của bạn</FormControlLabelText>
-              </FormControlLabel>
-              <Controller
-                name="name"
-                control={phoneForm.control}
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <Input>
-                    <InputField
-                      placeholder="Nhập tên của bạn..."
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                    />
-                  </Input>
-                )}
-              />
-              <FormControlError>
-                <FormControlErrorIcon as={AlertTriangle} />
-                <FormControlErrorText>
-                  {phoneForm.formState.errors.name?.message}
-                </FormControlErrorText>
-              </FormControlError>
-            </FormControl>
-
-            <FormControl
-              isInvalid={!!phoneForm.formState.errors.phone}
-              className="w-full"
-            >
-              <FormControlLabel>
-                <FormControlLabelText>Số điện thoại</FormControlLabelText>
-              </FormControlLabel>
-              <Controller
-                name="phone"
-                control={phoneForm.control}
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <Input>
-                    <InputField
-                      placeholder="Nhập số điện thoại..."
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      keyboardType="phone-pad"
-                    />
-                  </Input>
-                )}
-              />
-              <FormControlError>
-                <FormControlErrorIcon as={AlertTriangle} />
-                <FormControlErrorText>
-                  {phoneForm.formState.errors.phone?.message}
-                </FormControlErrorText>
-              </FormControlError>
-            </FormControl>
-          </VStack>
-
-          <Button
-            variant="solid"
-            size="lg"
-            isDisabled={phoneForm.formState.isSubmitting}
-            onPress={phoneForm.handleSubmit(handlePhoneSignup)}
-            className="w-full mt-8 bg-primary-400"
-          >
-            {phoneForm.formState.isSubmitting ? (
-              <ButtonSpinner color="white" />
-            ) : (
-              <ButtonText className="text-typography-950">Đăng ký</ButtonText>
-            )}
-          </Button>
-        </VStack>
+        <PhoneSignupForm onSubmit={handlePhoneSignup} />
       )}
 
       <HStack className="self-center" space="sm">

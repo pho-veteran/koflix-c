@@ -50,6 +50,13 @@ export async function createOrUpdateUser(
             return null;
         }
         
+        // Ensure name is not empty
+        if (!userData.name) {
+            console.warn("No name provided for user creation/update");
+
+            userData.name = "User";
+        }
+        
         const response = await axios.post(
             `${API_URL}/api/public/user/create-user`,
             {

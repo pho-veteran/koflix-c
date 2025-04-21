@@ -45,40 +45,6 @@ export const signUpWithEmailAndPassword = async (
   }
 };
 
-export const signUpUser = async (
-    emailOrPhone: string,
-    password: string,
-): Promise<AuthResult<FirebaseAuthTypes.User>> => {
-    try {
-        let userCredential;
-
-        if (isEmail(emailOrPhone)) {
-            userCredential = await auth().createUserWithEmailAndPassword(
-                emailOrPhone,
-                password
-            );
-        } else {
-            return {
-                success: false,
-                error: {
-                    code: "auth/phone-requires-verification",
-                    message: "Đăng ký với số điện thoại cần thiết lập xác thực OTP"
-                }
-            };
-        }
-
-        return { success: true, data: userCredential.user };
-    } catch (error: any) {
-        return { 
-            success: false, 
-            error: { 
-                code: error.code || "auth/unknown-error", 
-                message: getFirebaseErrorMessage(error)
-            } 
-        };
-    }
-};
-
 // Sign in with email and password
 export const signInWithEmailAndPassword = async (
   emailOrPhone: string,

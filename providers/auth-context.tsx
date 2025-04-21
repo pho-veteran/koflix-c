@@ -42,12 +42,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (userData) {
         setUser(userData);
-      } else {
-        const newUser = await createOrUpdateUser({
-          name: 'Koflix User',
-          emailOrPhone: firebaseUser?.email || firebaseUser?.phoneNumber || undefined
-        });
-        setUser(newUser);
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
