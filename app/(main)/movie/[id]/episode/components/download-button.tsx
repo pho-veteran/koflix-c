@@ -18,7 +18,8 @@ interface DownloadButtonProps {
   episodeServerId: string;
   episodeServerName: string;
   episodeServerFileName: string;
-  m3u8Url: string;
+  m3u8Url?: string;
+  mp4Url?: string;
   thumbUrl?: string;
   size?: number;
   showText?: boolean;
@@ -33,6 +34,7 @@ const DownloadButton: React.FC<DownloadButtonProps> = ({
   episodeServerName,
   episodeServerFileName,
   m3u8Url,
+  mp4Url,
   thumbUrl,
   size = 24,
   showText = false
@@ -105,6 +107,12 @@ const DownloadButton: React.FC<DownloadButtonProps> = ({
       return;
     }
     
+    // Validate we have at least one download URL
+    if (!m3u8Url && !mp4Url) {
+      Alert.alert("Lỗi", "Không có nguồn tải xuống cho video này.");
+      return;
+    }
+    
     setIsLoading(true);
 
     try {
@@ -121,7 +129,8 @@ const DownloadButton: React.FC<DownloadButtonProps> = ({
       if (modalType === 'download') {
         await DownloadService.startDownload(
           episodeId,
-          m3u8Url,
+          m3u8Url || null,
+          mp4Url || null,
           title,
           userId,
           episodeData,
@@ -133,7 +142,8 @@ const DownloadButton: React.FC<DownloadButtonProps> = ({
         await DownloadService.deleteDownloadedFile(downloadTask.id);
         await DownloadService.startDownload(
           episodeId,
-          m3u8Url,
+          m3u8Url || null,
+          mp4Url || null,
           title,
           userId,
           episodeData,

@@ -15,7 +15,8 @@ export interface EpisodeServer {
     server_name: string;
     filename: string;
     link_embed: string;
-    link_m3u8: string;
+    link_m3u8?: string;
+    link_mp4?: string; // Added mp4 link support
     createdAt: string;
     updatedAt: string;
 }

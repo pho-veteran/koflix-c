@@ -3,6 +3,7 @@ import NetInfo, {
     NetInfoState,
     NetInfoSubscription,
 } from "@react-native-community/netinfo";
+import * as FileSystem from "expo-file-system";
 import * as StorageService from "./storage-service";
 import * as NotificationService from "./notification-service";
 import { DownloadStatus, DownloadTask } from "@/types/download-type";
@@ -21,11 +22,18 @@ const processNextDownload = () => {
 
     const waitingTasks = StorageService.getAllTasks().filter(
         (task) =>
-            task.status === DownloadStatus.DOWNLOADING && !task.ffmpegSessionId
+            task.status === DownloadStatus.DOWNLOADING && 
+            !task.ffmpegSessionId && 
+            !task.downloadResumable
     );
 
     if (waitingTasks.length > 0) {
-        startFFmpegDownload(waitingTasks[0].id);
+        const task = waitingTasks[0];
+        if (task.m3u8Url) {
+            startFFmpegDownload(task.id);
+        } else if (task.mp4Url) {
+            startDirectDownload(task.id);
+        }
     }
 };
 
@@ -37,34 +45,124 @@ const handleConnectivityChange = (state: NetInfoState) => {
         const activeTasks = StorageService.getAllTasks().filter(
             (task) =>
                 task.status === DownloadStatus.DOWNLOADING &&
-                task.ffmpegSessionId
+                (task.ffmpegSessionId || task.downloadResumable)
         );
 
         activeTasks.forEach(async (task) => {
             if (task.ffmpegSessionId) {
                 await FFmpegKit.cancel(task.ffmpegSessionId);
-
                 StorageService.updateTaskState(task.id, {
                     status: DownloadStatus.CANCELLED,
                     error: "Download cancelled due to internet connection loss",
                     ffmpegSessionId: undefined,
                 });
+            } else if (task.downloadResumable) {
+                await task.downloadResumable.pauseAsync();
+                StorageService.updateTaskState(task.id, {
+                    status: DownloadStatus.CANCELLED,
+                    error: "Download cancelled due to internet connection loss",
+                    downloadResumable: undefined,
+                });
+            }
 
-                const updatedTask = StorageService.getTask(task.id);
-                if (updatedTask) {
-                    await NotificationService.sendCancelledNotification(
-                        updatedTask
-                    );
-                }
+            const updatedTask = StorageService.getTask(task.id);
+            if (updatedTask) {
+                await NotificationService.sendCancelledNotification(updatedTask);
             }
         });
     }
 };
 
+// Handle direct MP4 downloads using Expo FileSystem
+const startDirectDownload = async (taskId: string) => {
+    const task = StorageService.getTask(taskId);
+    if (!task || task.status !== DownloadStatus.DOWNLOADING || !task.mp4Url) {
+        console.warn(`Task ${taskId} not valid for direct download.`);
+        processNextDownload();
+        return;
+    }
+
+    const netState = await NetInfo.fetch();
+    if (!netState.isConnected) {
+        console.warn(`Cannot start download for task ${taskId}: No internet connection.`);
+        StorageService.updateTaskState(taskId, {
+            status: DownloadStatus.CANCELLED,
+            error: "No internet connection available",
+        });
+
+        const cancelledTask = StorageService.getTask(taskId);
+        if (cancelledTask) {
+            await NotificationService.sendCancelledNotification(cancelledTask);
+        }
+        return;
+    }
+
+    activeDownloadCount++;
+    await NotificationService.sendStateNotification(task);
+
+    try {
+        // Create a download resumable
+        const downloadResumable = FileSystem.createDownloadResumable(
+            task.mp4Url,
+            task.filePath,
+            {},
+            (downloadProgress) => {
+                const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+                StorageService.updateTaskState(taskId, { progress });
+            }
+        );
+
+        // Store the downloadResumable in the task
+        StorageService.updateTaskState(taskId, { downloadResumable });
+
+        // Start the download
+        const result = await downloadResumable.downloadAsync();
+        
+        if (result) {
+            StorageService.updateTaskState(taskId, {
+                status: DownloadStatus.COMPLETED,
+                downloadResumable: undefined,
+            });
+            
+            const completedTask = StorageService.getTask(taskId);
+            if (completedTask) {
+                await NotificationService.sendCompletionNotification(completedTask, true);
+            }
+        } else {
+            StorageService.updateTaskState(taskId, {
+                status: DownloadStatus.CANCELLED,
+                error: "Download failed",
+                downloadResumable: undefined,
+            });
+            
+            const cancelledTask = StorageService.getTask(taskId);
+            if (cancelledTask) {
+                await NotificationService.sendCancelledNotification(cancelledTask);
+            }
+        }
+    } catch (error) {
+        console.error(`Error downloading MP4 for task ${taskId}:`, error);
+        
+        StorageService.updateTaskState(taskId, {
+            status: DownloadStatus.CANCELLED,
+            error: `Download failed`,
+            downloadResumable: undefined,
+        });
+        
+        const cancelledTask = StorageService.getTask(taskId);
+        if (cancelledTask) {
+            await NotificationService.sendCancelledNotification(cancelledTask);
+        }
+    } finally {
+        activeDownloadCount--;
+        processNextDownload();
+    }
+};
+
 const startFFmpegDownload = async (taskId: string) => {
     const task = StorageService.getTask(taskId);
-    if (!task || task.status !== DownloadStatus.DOWNLOADING) {
-        console.warn(`Task ${taskId} not found or not in downloading state.`);
+    if (!task || task.status !== DownloadStatus.DOWNLOADING || !task.m3u8Url) {
+        console.warn(`Task ${taskId} not valid for FFmpeg download.`);
         processNextDownload();
         return;
     }
@@ -212,6 +310,7 @@ export const initializeDownloadService = async () => {
                 status: DownloadStatus.CANCELLED,
                 error: "Download cancelled due to app closure",
                 ffmpegSessionId: undefined,
+                downloadResumable: undefined,
             });
             
             // Clean up any partial files
@@ -233,9 +332,11 @@ export const initializeDownloadService = async () => {
     isInitialized = true;
 };
 
+// Modified to accept either m3u8Url or mp4Url
 export const startDownload = async (
     id: string,
-    m3u8Url: string,
+    m3u8Url: string | null,
+    mp4Url: string | null,
     title: string,
     userId: string,
     episodeData?: Partial<DownloadTask["episodeData"]>,
@@ -248,6 +349,12 @@ export const startDownload = async (
 
     if (!userId) {
         console.error("Cannot start download: No user ID provided");
+        return null;
+    }
+
+    // Require at least one URL
+    if (!m3u8Url && !mp4Url) {
+        console.error("Cannot start download: No valid URL provided");
         return null;
     }
 
@@ -269,7 +376,8 @@ export const startDownload = async (
     if (fileExists) {
         const completedTask: DownloadTask = {
             id: taskId,
-            m3u8Url,
+            m3u8Url: m3u8Url || undefined,
+            mp4Url: mp4Url || undefined,
             title,
             thumbUrl,
             filePath,
@@ -296,7 +404,8 @@ export const startDownload = async (
 
     const newTask: DownloadTask = {
         id: taskId,
-        m3u8Url,
+        m3u8Url: m3u8Url || undefined,
+        mp4Url: mp4Url || undefined,
         title,
         thumbUrl,
         filePath,
@@ -313,9 +422,7 @@ export const startDownload = async (
     };
 
     StorageService.saveTask(newTask);
-
     await NotificationService.sendStateNotification(newTask);
-
     processNextDownload();
 
     return taskId;
@@ -327,15 +434,23 @@ export const cancelDownload = async (taskId: string) => {
 
     if (task.ffmpegSessionId) {
         await FFmpegKit.cancel(task.ffmpegSessionId);
-    } else if (task.status === DownloadStatus.DOWNLOADING) {
-        StorageService.updateTaskState(taskId, {
-            status: DownloadStatus.CANCELLED,
-        });
-
-        const updatedTask = StorageService.getTask(taskId);
-        if (updatedTask) {
-            await NotificationService.sendCancelledNotification(updatedTask);
+    } else if (task.downloadResumable) {
+        try {
+            await task.downloadResumable.pauseAsync();
+        } catch (error) {
+            console.warn(`Error pausing download for task ${taskId}:`, error);
         }
+    }
+
+    StorageService.updateTaskState(taskId, {
+        status: DownloadStatus.CANCELLED,
+        ffmpegSessionId: undefined,
+        downloadResumable: undefined
+    });
+
+    const updatedTask = StorageService.getTask(taskId);
+    if (updatedTask) {
+        await NotificationService.sendCancelledNotification(updatedTask);
     }
 
     try {
@@ -382,11 +497,16 @@ export const deleteDownloadedFile = async (
 
 export const cleanupDownloadService = () => {
     StorageService.getAllTasks().forEach((task) => {
-        if (
-            task.status === DownloadStatus.DOWNLOADING &&
-            task.ffmpegSessionId
-        ) {
-            FFmpegKit.cancel(task.ffmpegSessionId);
+        if (task.status === DownloadStatus.DOWNLOADING) {
+            if (task.ffmpegSessionId) {
+                FFmpegKit.cancel(task.ffmpegSessionId);
+            } else if (task.downloadResumable) {
+                try {
+                    task.downloadResumable.pauseAsync();
+                } catch (error) {
+                    console.warn(`Error pausing download for task ${task.id}:`, error);
+                }
+            }
         }
     });
 
@@ -396,6 +516,5 @@ export const cleanupDownloadService = () => {
     }
 
     NotificationService.cleanupNotifications();
-
     isInitialized = false;
 };

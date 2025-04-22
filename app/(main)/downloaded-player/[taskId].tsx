@@ -18,10 +18,10 @@ export default function OfflinePlayerScreen() {
   const { taskId } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  
+
   const [downloadTask, setDownloadTask] = useState<DownloadTask | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1.0);
-  
+
   // Use the video player hook
   const videoPlayerHook = useVideoPlayer({
     onGoBack: () => router.back()
@@ -30,9 +30,9 @@ export default function OfflinePlayerScreen() {
   const {
     videoRef,
     fadeAnim,
-    isLoading, 
+    isLoading,
     setIsLoading,
-    error, 
+    error,
     setError,
     isPlaying,
     isFullscreen,
@@ -55,13 +55,13 @@ export default function OfflinePlayerScreen() {
   // Load the download task
   useEffect(() => {
     if (!taskId) return;
-    
+
     const task = StorageService.getTask(taskId as string);
     if (!task) {
       setError('Video không tồn tại hoặc đã bị xóa');
       return;
     }
-    
+
     setDownloadTask(task);
     setIsLoading(false);
   }, [taskId, setError, setIsLoading]);
@@ -73,7 +73,7 @@ export default function OfflinePlayerScreen() {
   // Format movie title and episode name
   const formatVideoInfo = () => {
     if (!downloadTask) return { movieName: '', episodeName: '' };
-    
+
     const parts = downloadTask.title.split(' - ');
     if (parts.length > 1) {
       return {
@@ -81,7 +81,7 @@ export default function OfflinePlayerScreen() {
         episodeName: parts.slice(1).join(' - ')
       };
     }
-    
+
     return {
       movieName: downloadTask.title,
       episodeName: ''
@@ -138,9 +138,9 @@ export default function OfflinePlayerScreen() {
 
   const { movieName } = formatVideoInfo();
   const isPortrait = !isFullscreen;
-  const aspectRatio = videoInfo.width && videoInfo.height 
-    ? videoInfo.width / videoInfo.height 
-    : 16/9;
+  const aspectRatio = videoInfo.width && videoInfo.height
+    ? videoInfo.width / videoInfo.height
+    : 16 / 9;
   const displayTitle = getDisplayTitle();
 
   return (
@@ -151,9 +151,9 @@ export default function OfflinePlayerScreen() {
       ]}
     >
       <StatusBar hidden={isFullscreen} />
-      
+
       <View style={[
-        styles.videoContainer, 
+        styles.videoContainer,
         isFullscreen ? styles.fullscreenVideo : { height: aspectRatio > 1 ? 230 : 300 }
       ]}>
         <Video
@@ -204,24 +204,21 @@ export default function OfflinePlayerScreen() {
         <VStack className="p-4 flex-1">
           {/* Video title section */}
           <Text className="text-typography-800 text-lg font-semibold">{displayTitle}</Text>
-          
+
           {downloadTask.episodeData?.movieId && (
-            <HStack className="mt-2 items-center">
-              <Text className="text-typography-600">Phim: </Text>
-              <Text className="text-typography-800">{movieName}</Text>
-            </HStack>
+            <Text className="mt-2 text-typography-600">{movieName}</Text>
           )}
-          
+
           {/* Downloaded info section */}
           <HStack className="mt-4 mb-3 items-center">
             <Ionicons name="checkmark-circle" size={16} color="#10B981" />
             <Text className="text-green-500 text-xs ml-1">Đã tải xuống</Text>
-            
+
             <Text className="text-typography-600 text-xs ml-4">
               {new Date(downloadTask.createdAt).toLocaleDateString()}
             </Text>
           </HStack>
-          
+
           {/* Info about offline mode */}
           <View className="bg-background-300/10 p-4 rounded-lg mt-6">
             <HStack className="items-center mb-2">

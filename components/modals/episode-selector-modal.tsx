@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   TouchableOpacity,
@@ -46,6 +46,20 @@ const EpisodeSelectorModal: React.FC<EpisodeSelectorModalProps> = ({
 
   // Use 2 columns in landscape mode, otherwise 1 column
   const numColumns = isLandscape ? 2 : 1;
+
+  // Sort episodes by name in ascending order
+  const sortedEpisodes = useMemo(() => {
+    return [...episodes].sort((a, b) => {
+      const numA = parseInt(a.name);
+      const numB = parseInt(b.name);
+      
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB; // Ascending order
+      }
+      
+      return a.name.localeCompare(b.name); // Ascending order
+    });
+  }, [episodes]);
 
   const handleEpisodeSelect = (episode: Episode) => {
     onSelectEpisode(episode);
@@ -123,7 +137,7 @@ const EpisodeSelectorModal: React.FC<EpisodeSelectorModalProps> = ({
                 <Heading className="text-typography-950 text-xl font-bold">
                   Tập phim
                 </Heading>
-                <Text className="text-typography-500 text-sm mt-1" numberOfLines={1}>
+                <Text className="text-typography-500 text-sm mt-1 truncate w-64" numberOfLines={1}>
                   {movieName}
                 </Text>
               </VStack>
@@ -173,7 +187,7 @@ const EpisodeSelectorModal: React.FC<EpisodeSelectorModalProps> = ({
           {/* Episodes List */}
           <View style={{ maxHeight: isLandscape ? height * 0.5 : 400 }}>
             <FlatList
-              data={episodes}
+              data={sortedEpisodes}
               renderItem={renderEpisode}
               keyExtractor={(item) => item.id}
               showsVerticalScrollIndicator={false}

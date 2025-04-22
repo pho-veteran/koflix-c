@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TouchableOpacity, ActivityIndicator, StyleSheet, Platform, Animated } from 'react-native';
+import { View, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import Video from 'react-native-video';
 import { Ionicons } from "@expo/vector-icons";
 import { Text } from "@/components/ui/text";
@@ -73,6 +73,18 @@ const VideoPlayer = ({
     }
   };
 
+  // Determine video source based on availability
+  const getVideoSource = () => {
+    if (selectedServer?.link_m3u8) {
+      return { uri: selectedServer.link_m3u8 };
+    } else if (selectedServer?.link_mp4) {
+      return { uri: selectedServer.link_mp4 };
+    }
+    return null;
+  };
+
+  const videoSource = getVideoSource();
+
   return (
     <TouchableOpacity
       activeOpacity={1}
@@ -82,10 +94,10 @@ const VideoPlayer = ({
         isFullscreen ? styles.fullscreenVideo : { height: 230 }
       ]}
     >
-      {selectedServer?.link_m3u8 ? (
+      {videoSource ? (
         <Video
           ref={videoRef}
-          source={{ uri: selectedServer.link_m3u8 }}
+          source={videoSource}
           style={styles.video}
           resizeMode="contain"
           onLoadStart={() => setIsVideoLoading(true)}
@@ -138,6 +150,7 @@ const VideoPlayer = ({
         episodeServerName={selectedServer?.server_name}
         episodeServerFileName={selectedServer?.filename}
         m3u8Url={selectedServer?.link_m3u8}
+        mp4Url={selectedServer?.link_mp4}
         thumbUrl={thumbUrl}
         playbackRate={playbackRate}
         onChangePlaybackRate={onChangePlaybackRate}

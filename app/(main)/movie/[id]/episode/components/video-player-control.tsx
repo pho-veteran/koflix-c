@@ -36,6 +36,7 @@ interface VideoPlayerControlsProps {
   episodeServerName?: string;
   episodeServerFileName?: string;
   m3u8Url?: string;
+  mp4Url?: string; // Add this prop
   thumbUrl?: string;
 
   // Playback speed props
@@ -72,6 +73,7 @@ const VideoPlayerControls = ({
   episodeServerName,
   episodeServerFileName,
   m3u8Url,
+  mp4Url, // Add this prop
   thumbUrl,
   playbackRate,
   onChangePlaybackRate,
@@ -250,7 +252,7 @@ const VideoPlayerControls = ({
                   )}
                 </View>
 
-                {movieId && episodeId && episodeServerId && m3u8Url && (
+                {movieId && episodeId && episodeServerId && (m3u8Url || mp4Url) && (
                   <HStack space="sm">
                     <DownloadButton
                       movieId={movieId}
@@ -261,6 +263,7 @@ const VideoPlayerControls = ({
                       episodeServerName={episodeServerName || ''}
                       episodeServerFileName={episodeServerFileName || filename || ''}
                       m3u8Url={m3u8Url}
+                      mp4Url={mp4Url} // Add this prop
                       thumbUrl={thumbUrl}
                       showText={isFullscreen}
                       size={20}
