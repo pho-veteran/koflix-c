@@ -1,50 +1,30 @@
 import React, { useEffect, useState } from "react";
-import { View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Image } from "react-native";
+import { View, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Text } from "@/components/ui/text";
-import { Heading } from "@/components/ui/heading";
-import { VStack } from "@/components/ui/vstack";
-import { HStack } from "@/components/ui/hstack";
 import { Divider } from "@/components/ui/divider";
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NETFLIX_RED, LOADING, HEADER_HEIGHT } from "@/constants/ui-constants";
 import { useAuth } from "@/providers/auth-context";
-import { getUserDetail } from "@/api/users";
+import { getUserDetail, updateUserProfile } from "@/api/users";
 import { getWatchHistory } from "@/api/user-movie";
 import { User } from "@/types/user-type";
 import { EpisodeWatchHistory } from "@/types/user-movie-type";
-import { Alert } from "react-native";
 import HomeHeader from "@/components/layout/home-header";
 import { useDownload } from "@/providers/download-context";
 import { DownloadStatus, DownloadTask } from "@/types/download-type";
 import ConfirmationModal from "@/components/modals/confirmation-modal";
 import { useIsFocused } from "@react-navigation/native";
-import WatchHistoryItem from "../watch-history/components/watch-history-item";
-
-const getRoleBadgeConfig = (role?: string) => {
-  switch (role) {
-    case "ADMIN":
-      return {
-        bgColor: "bg-primary-400/20",
-        textColor: "text-primary-400",
-        displayText: "Quản trị viên"
-      };
-    case "UPLOADER":
-      return {
-        bgColor: "bg-blue-500/20",
-        textColor: "text-blue-500",
-        displayText: "Uploader"
-      };
-    default:
-      return {
-        bgColor: "bg-green-500/20",
-        textColor: "text-green-500",
-        displayText: "Người dùng"
-      };
-  }
-};
+import ProfileUpdateModal from "@/components/modals/profile-update-modal";
+import * as ImagePicker from "expo-image-picker";
+import {
+  ProfileHeader,
+  WatchHistorySection,
+  DownloadedSection,
+  LogoutButton,
+  FooterText
+} from "@/components/profile";
 
 const ProfilePage = () => {
   const insets = useSafeAreaInsets();
@@ -58,9 +38,16 @@ const ProfilePage = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [recentDownload, setRecentDownload] = useState<DownloadTask | null>(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [showAvatarModal, setShowAvatarModal] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
+
   const [isModalLoading, setIsModalLoading] = useState(false);
+  const [showProfileUpdateModal, setShowProfileUpdateModal] = useState(false);
+  const [profileName, setProfileName] = useState<string>("");
+  const [profileImage, setProfileImage] = useState<{ uri: string } | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [errorModalConfig, setErrorModalConfig] = useState({
+    show: false,
+    message: ""
+  });
 
   const fetchUserData = async (showRefreshing = false) => {
     try {
@@ -107,6 +94,13 @@ const ProfilePage = () => {
     }
   }, [userDownloads]);
 
+  useEffect(() => {
+    if (user) {
+      setProfileName(user.name || "");
+      setProfileImage(null);
+    }
+  }, [user, showProfileUpdateModal]);
+
   const handleRefresh = () => {
     fetchUserData(true);
   };
@@ -128,11 +122,74 @@ const ProfilePage = () => {
   };
 
   const handleChangeAvatar = () => {
-    setShowAvatarModal(true);
+    setShowProfileUpdateModal(true);
+  };
+
+  const handlePickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setProfileImage({ uri: result.assets[0].uri });
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    setProfileLoading(true);
+    try {
+      let imageFile: any = undefined;
+      if (profileImage) {
+        imageFile = {
+          uri: profileImage.uri,
+          name: 'avatar.jpg',
+          type: 'image/jpeg',
+        };
+      }
+
+      const updated = await updateUserProfile({ name: profileName, image: imageFile });
+      if (updated) {
+        setUser(updated);
+        setShowProfileUpdateModal(false);
+      } else {
+        setErrorModalConfig({
+          show: true,
+          message: "Cập nhật thông tin thất bại. Vui lòng thử lại."
+        });
+      }
+    } catch (e) {
+      console.error("Error updating profile:", e);
+      setErrorModalConfig({
+        show: true,
+        message: "Cập nhật thông tin thất bại. Vui lòng thử lại."
+      });
+    } finally {
+      setProfileLoading(false);
+    }
   };
 
   const navigateToWatchHistory = () => {
     router.push("/watch-history");
+  };
+
+  const handleWatchHistoryItemPress = (item: EpisodeWatchHistory) => {
+    if (item.movie?.id && item.episodeServer?.episode?.id && item.episodeServer.id) {
+      router.push(
+        `/movie/${item.movie.id}/episode/${item.episodeServer.episode.id}?serverId=${item.episodeServer.id}`
+      );
+    } else {
+      console.error("Missing required navigation data", item);
+    }
+  };
+
+  const navigateToDownloads = () => {
+    router.push("/(main)/(tabs)/downloaded");
+  };
+
+  const navigateToDownloadedPlayer = (downloadId: string) => {
+    router.push(`/downloaded-player/${downloadId}`);
   };
 
   if (isLoading) {
@@ -172,198 +229,37 @@ const ProfilePage = () => {
           />
         }
       >
-        {/* Profile Header */}
-        <VStack className="px-5 pt-6 pb-4">
-          <View className="bg-secondary-200/10 rounded-xl p-4 mb-2 border border-outline-200/10">
-            <HStack className="items-center">
-              {/* Clickable Avatar with role-based border color */}
-              <TouchableOpacity
-                onPress={handleChangeAvatar}
-                className="relative"
-              >
-                <View
-                  className={`w-20 h-20 rounded-full items-center justify-center mr-4 overflow-hidden
-                    ${user?.role === "ADMIN" ? "border-2 border-primary-400" :
-                      user?.role === "UPLOADER" ? "border-2 border-blue-500" :
-                        "border border-outline-200/30"}`}
-                >
-                  {user?.avatarUrl ? (
-                    <Image
-                      source={{ uri: user.avatarUrl }}
-                      className="w-full h-full rounded-full"
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View className="w-full h-full bg-primary-400/30 items-center justify-center">
-                      <Text className="text-typography-800 text-3xl font-bold">
-                        {user?.name?.charAt(0)?.toUpperCase() || "?"}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Edit indicator */}
-                <View className="absolute bottom-0 right-3 bg-primary-300 rounded-full p-1.5 border-2 border-secondary-200">
-                  <Ionicons name="pencil" size={12} color="#fff" />
-                </View>
-              </TouchableOpacity>
-
-              <VStack>
-                {/* User name */}
-                <Heading size="lg" className="text-typography-800">
-                  {user?.name || "Người dùng"}
-                </Heading>
-
-                {/* Email/Phone */}
-                <HStack className="items-center mt-1">
-                  <Ionicons name="mail-outline" size={14} color="#9ca3af" />
-                  <Text className="text-typography-600 text-sm ml-1.5">
-                    {user?.emailOrPhone || ""}
-                  </Text>
-                </HStack>
-
-                {/* Role badge */}
-                {user?.role && (() => {
-                  const { bgColor, textColor, displayText } = getRoleBadgeConfig(user.role);
-                  return (
-                    <View className={`px-2.5 py-0.5 rounded-full mt-2 self-start ${bgColor}`}>
-                      <Text className={`text-xs font-medium ${textColor}`}>
-                        {displayText}
-                      </Text>
-                    </View>
-                  );
-                })()}
-              </VStack>
-            </HStack>
-          </View>
-        </VStack>
+        {/* Profile Header Component */}
+        <ProfileHeader 
+          user={user} 
+          onChangeAvatar={handleChangeAvatar} 
+        />
 
         <Divider />
 
-        {/* Recent Watch History */}
-        <VStack className="px-5 py-4">
-          <HStack className="justify-between items-center mb-3">
-            <Heading size="sm" className="text-typography-800">
-              Xem gần đây
-            </Heading>
-            <TouchableOpacity onPress={navigateToWatchHistory}>
-              <HStack className="items-center">
-                <Text className="text-primary-400 text-sm mr-1">Xem tất cả</Text>
-                <Ionicons name="chevron-forward" size={16} color="#f43f5e" />
-              </HStack>
-            </TouchableOpacity>
-          </HStack>
-
-          {watchHistory.length > 0 ? (
-            <VStack space="sm">
-              {watchHistory.map((item) => (
-                <WatchHistoryItem
-                  key={item.id}
-                  item={item}
-                  onPress={() => {
-                    if (item.movie?.id && item.episodeServer?.episode?.id && item.episodeServer.id) {
-                      router.push(
-                        `/movie/${item.movie.id}/episode/${item.episodeServer.episode.id}?serverId=${item.episodeServer.id}`
-                      );
-                    } else {
-                      console.error("Missing required navigation data", item);
-                    }
-                  }}
-                />
-              ))}
-            </VStack>
-          ) : (
-            <View className="py-5 items-center">
-              <Ionicons name="film-outline" size={36} color="#666" />
-              <Text className="text-typography-600 mt-2 text-center">
-                Bạn chưa xem phim nào gần đây
-              </Text>
-            </View>
-          )}
-        </VStack>
+        {/* Watch History Section Component */}
+        <WatchHistorySection 
+          watchHistory={watchHistory}
+          onViewAll={navigateToWatchHistory}
+          onItemPress={handleWatchHistoryItemPress}
+        />
 
         <Divider />
 
-        {/* Downloaded Films Section */}
-        <VStack className="px-5 py-4">
-          <HStack className="justify-between items-center mb-3">
-            <Heading size="sm" className="text-typography-800">
-              Phim đã tải xuống
-            </Heading>
-            <TouchableOpacity onPress={() => router.push("/(main)/(tabs)/downloaded")}>
-              <HStack className="items-center">
-                <Text className="text-primary-400 text-sm mr-1">Xem tất cả</Text>
-                <Ionicons name="chevron-forward" size={16} color="#f43f5e" />
-              </HStack>
-            </TouchableOpacity>
-          </HStack>
-
-          {recentDownload ? (
-            <TouchableOpacity
-              className="bg-secondary-200/30 rounded-lg p-3 flex-row"
-              onPress={() => router.push(`/downloaded-player/${recentDownload.id}`)}
-            >
-              <View className="w-20 h-20 rounded-lg bg-secondary-300/50 mr-3 overflow-hidden">
-                {recentDownload.thumbUrl ? (
-                  <Image
-                    source={{ uri: recentDownload.thumbUrl }}
-                    className="w-full h-full"
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View className="w-full h-full items-center justify-center">
-                    <Ionicons name="film-outline" size={24} color="#9ca3af" />
-                  </View>
-                )}
-                <View className="absolute top-1 right-1 bg-green-500/80 rounded-full p-1">
-                  <Ionicons name="checkmark-circle" size={12} color="#fff" />
-                </View>
-              </View>
-
-              <VStack className="flex-1 justify-center">
-                <Text className="text-typography-800 font-medium" numberOfLines={1}>
-                  {recentDownload.episodeData?.episodeName || recentDownload.title.split(" - ")[1] || recentDownload.title}
-                </Text>
-                <Text className="text-typography-600 text-sm" numberOfLines={1}>
-                  {recentDownload.episodeData?.episodeServerName || "Offline"}
-                </Text>
-                <HStack className="items-center mt-2">
-                  <Ionicons name="time-outline" size={14} color="#9ca3af" />
-                  <Text className="text-typography-500 text-xs ml-1">
-                    {new Date(recentDownload.createdAt).toLocaleDateString()}
-                  </Text>
-                </HStack>
-              </VStack>
-            </TouchableOpacity>
-          ) : (
-            <View className="py-5 items-center">
-              <Ionicons name="download-outline" size={36} color="#666" />
-              <Text className="text-typography-600 mt-2 text-center">
-                Bạn chưa tải xuống phim nào
-              </Text>
-            </View>
-          )}
-        </VStack>
+        {/* Downloaded Section Component */}
+        <DownloadedSection 
+          recentDownload={recentDownload}
+          onViewAll={navigateToDownloads}
+          onItemPress={navigateToDownloadedPlayer}
+        />
 
         <Divider />
 
-        {/* Logout Button */}
-        <View className="px-5 py-6">
-          <TouchableOpacity
-            className="flex-row items-center justify-center py-3 rounded-lg border border-error-400 active:bg-error-400/10"
-            onPress={handleLogout}
-          >
-            <Ionicons name="log-out-outline" size={20} color="#f43f5e" />
-            <Text className="text-error-400 ml-2 font-medium">Đăng xuất</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Logout Button Component */}
+        <LogoutButton onLogout={handleLogout} />
 
-        {/* Footer Text */}
-        <View className="items-center pb-4">
-          <Text className="text-typography-500 text-xs">
-            © Koflix - Nền tảng xem phim trực tuyến
-          </Text>
-        </View>
+        {/* Footer Text Component */}
+        <FooterText />
       </ScrollView>
 
       {isRefreshing && (
@@ -386,41 +282,33 @@ const ProfilePage = () => {
         isLoading={isModalLoading}
       />
 
-      <ConfirmationModal
-        isOpen={showAvatarModal}
-        onClose={() => setShowAvatarModal(false)}
-        onConfirm={() => {
-          // Future implementation for changing avatar
-          setShowAvatarModal(false);
-        }}
-        confirmationType="info"
-        title="Thay đổi ảnh đại diện"
-        message="Tính năng đang được phát triển"
-        confirmText="Đóng"
-        customConfig={{
-          icon: "image-outline",
-          iconColor: "#3B82F6",
-          confirmColor: "info"
-        }}
+      <ProfileUpdateModal
+        isOpen={showProfileUpdateModal}
+        onClose={() => setShowProfileUpdateModal(false)}
+        name={profileName}
+        avatarUrl={user?.avatarUrl || undefined}
+        isLoading={profileLoading}
+        onChangeName={setProfileName}
+        onPickImage={handlePickImage}
+        onSave={handleSaveProfile}
+        image={profileImage}
       />
 
-      <ConfirmationModal
-        isOpen={showPasswordModal}
-        onClose={() => setShowPasswordModal(false)}
-        onConfirm={() => {
-          // Future implementation for changing password
-          setShowPasswordModal(false);
-        }}
-        confirmationType="info"
-        title="Đổi mật khẩu"
-        message="Tính năng đang được phát triển"
-        confirmText="Đóng"
-        customConfig={{
-          icon: "key-outline",
-          iconColor: "#3B82F6",
-          confirmColor: "info"
-        }}
-      />
+      {errorModalConfig.show && (
+        <ConfirmationModal
+          isOpen={errorModalConfig.show}
+          onClose={() => setErrorModalConfig({...errorModalConfig, show: false})}
+          onConfirm={() => setErrorModalConfig({...errorModalConfig, show: false})}
+          confirmationType="info"
+          title="Lỗi"
+          message={errorModalConfig.message}
+          confirmText="Đóng"
+          customConfig={{
+            icon: "alert-circle-outline",
+            iconColor: "#F43F5E"
+          }}
+        />
+      )}
     </View>
   );
 };
