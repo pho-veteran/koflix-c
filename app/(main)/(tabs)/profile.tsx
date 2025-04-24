@@ -41,7 +41,6 @@ const ProfilePage = () => {
 
   const [isModalLoading, setIsModalLoading] = useState(false);
   const [showProfileUpdateModal, setShowProfileUpdateModal] = useState(false);
-  const [profileName, setProfileName] = useState<string>("");
   const [profileImage, setProfileImage] = useState<{ uri: string } | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [errorModalConfig, setErrorModalConfig] = useState({
@@ -96,7 +95,6 @@ const ProfilePage = () => {
 
   useEffect(() => {
     if (user) {
-      setProfileName(user.name || "");
       setProfileImage(null);
     }
   }, [user, showProfileUpdateModal]);
@@ -137,7 +135,7 @@ const ProfilePage = () => {
     }
   };
 
-  const handleSaveProfile = async () => {
+  const handleSaveProfile = async (name: string) => {
     setProfileLoading(true);
     try {
       let imageFile: any = undefined;
@@ -149,7 +147,7 @@ const ProfilePage = () => {
         };
       }
 
-      const updated = await updateUserProfile({ name: profileName, image: imageFile });
+      const updated = await updateUserProfile({ name, image: imageFile });
       if (updated) {
         setUser(updated);
         setShowProfileUpdateModal(false);
@@ -285,10 +283,9 @@ const ProfilePage = () => {
       <ProfileUpdateModal
         isOpen={showProfileUpdateModal}
         onClose={() => setShowProfileUpdateModal(false)}
-        name={profileName}
+        initialName={user?.name || ""}
         avatarUrl={user?.avatarUrl || undefined}
         isLoading={profileLoading}
-        onChangeName={setProfileName}
         onPickImage={handlePickImage}
         onSave={handleSaveProfile}
         image={profileImage}

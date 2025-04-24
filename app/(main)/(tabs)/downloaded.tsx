@@ -72,7 +72,7 @@ export default function DownloadedPage() {
       }
 
       // Filter downloads by current user
-      const userDownloads = userId 
+      const userDownloads = userId
         ? allDownloads.filter(task => task.userId === userId)
         : [];
 
@@ -133,9 +133,9 @@ export default function DownloadedPage() {
           "Tệp video có thể đã bị xóa hoặc di chuyển. Bạn có muốn tải lại video này không?",
           [
             { text: "Không", style: "cancel" },
-            { 
-              text: "Tải lại", 
-              onPress: () => handleRetryDownload(task) 
+            {
+              text: "Tải lại",
+              onPress: () => handleRetryDownload(task)
             }
           ]
         );
@@ -173,7 +173,7 @@ export default function DownloadedPage() {
         case 'cancel':
           await DownloadService.cancelDownload(selectedTask.id);
           break;
-          
+
         case 'retry':
           await DownloadService.deleteDownloadedFile(selectedTask.id);
 
@@ -181,8 +181,9 @@ export default function DownloadedPage() {
             await DownloadService.startDownload(
               selectedTask.episodeData.episodeId || selectedTask.id,
               selectedTask.m3u8Url,
+              null,
               selectedTask.title,
-              userId, // Pass the userId
+              userId,
               {
                 movieId: selectedTask.episodeData.movieId,
                 episodeName: selectedTask.episodeData.episodeName,
@@ -219,8 +220,8 @@ export default function DownloadedPage() {
     return (
       <View className="flex-1 bg-black">
         <Header />
-        <View className="flex-1 justify-center items-center p-6" 
-              style={{ paddingTop: HEADER_HEIGHT + insets.top }}>
+        <View className="flex-1 justify-center items-center p-6"
+          style={{ paddingTop: HEADER_HEIGHT + insets.top }}>
           <Text className="text-typography-800 text-center text-base mb-4">
             Vui lòng đăng nhập để xem danh sách video đã tải xuống
           </Text>

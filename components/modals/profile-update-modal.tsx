@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@/components/ui/text';
@@ -14,33 +14,34 @@ import {
   AlertDialogFooter
 } from '@/components/ui/alert-dialog';
 import { FormControl, FormControlLabel, FormControlLabelText } from '@/components/ui/form-control';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 
 interface ProfileUpdateModalProps {
   isOpen: boolean;
   onClose: () => void;
-  name: string;
+  initialName: string;
   avatarUrl?: string;
   isLoading: boolean;
-  onChangeName: (name: string) => void;
   onPickImage: () => void;
-  onSave: () => void;
+  onSave: (name: string) => void;
   image: { uri: string } | null;
 }
 
 const ProfileUpdateModal: React.FC<ProfileUpdateModalProps> = ({
   isOpen,
   onClose,
-  name,
+  initialName,
   avatarUrl,
   isLoading,
-  onChangeName,
   onPickImage,
   onSave,
   image
 }) => {
+  const [name, setName] = useState(initialName);
   const displayImageUri = image?.uri || avatarUrl;
+
+  useEffect(() => {
+    setName(initialName);
+  }, [initialName, isOpen]);
 
   return (
     <AlertDialog isOpen={isOpen}>
@@ -89,7 +90,8 @@ const ProfileUpdateModal: React.FC<ProfileUpdateModalProps> = ({
                 <InputField
                   placeholder="Nhập tên của bạn"
                   value={name}
-                  onChangeText={onChangeName}
+                  onChangeText={setName}
+                  keyboardType='default'
                 />
               </Input>
             </FormControl>
@@ -110,7 +112,7 @@ const ProfileUpdateModal: React.FC<ProfileUpdateModalProps> = ({
           <Button
             variant="solid"
             size="sm"
-            onPress={onSave}
+            onPress={() => onSave(name)}
             disabled={isLoading}
             className="flex-1 bg-primary-500 active:bg-primary-600"
           >

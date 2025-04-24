@@ -85,6 +85,7 @@ interface FilterParams {
     startYear?: number;
     endYear?: number;
     name?: string;
+    contentSearch?: string;
     page?: number;
     limit?: number;
 }
@@ -101,7 +102,8 @@ interface FilterResponse {
 
 /**
  * Fetches movies with filtering and pagination using POST request.
- * @param params - Filter and pagination parameters
+ * Supports metadata filtering and semantic content search.
+ * @param params - Filter, search, and pagination parameters
  * @returns Promise with filtered movies and pagination data
  */
 export async function getFilteredMovies(
@@ -110,9 +112,15 @@ export async function getFilteredMovies(
     try {
         const requestBody: FilterParams = {
             page: 1,
-            limit: 20,
+            limit: 20, // Default limit
             ...params,
         };
+
+        // Ensure limit does not exceed max
+        if (requestBody.limit && requestBody.limit > 100) {
+            console.warn("Requested limit exceeds maximum (100). Setting limit to 100.");
+            requestBody.limit = 100;
+        }
 
         const url = `${API_URL}/api/public/filter`;
         const response = await axios.post(url, requestBody);
@@ -121,9 +129,13 @@ export async function getFilteredMovies(
     } catch (error) {
         console.error("Error fetching filtered movies:", error);
 
-        if (axios.isAxiosError(error) && error.response?.status === 400) {
-            console.error("Bad request:", error.response.data);
+        if (axios.isAxiosError(error)) {
+            if (error.response?.status === 400) {
+                console.error("Bad request:", error.response.data);
+            } else if (error.response?.status === 500) {
+                console.error("Internal server error:", error.response.data);
+            }
         }
-        throw error;
+        throw error; // Re-throw the error after logging
     }
 }

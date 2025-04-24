@@ -1,24 +1,29 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
-import { View, ScrollView } from "react-native";
+import { View, ScrollView, TouchableOpacity, TextInput } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useIsFocused } from "@react-navigation/native"; 
+import { useIsFocused } from "@react-navigation/native";
 import { getFilteredMovies } from "@/api/movies";
 import { MovieBase } from "@/types/movie-type";
 import { router } from "expo-router";
 import SearchFilterModal from "@/components/modals/search-filter-modal";
+import { Ionicons } from "@expo/vector-icons";
+import { Text } from "@/components/ui/text";
 
 // Import components
 import SearchHeader from "./components/search-header";
 import SearchResults from "./components/search-results";
-import Pagination from "./components/list-pagination"; 
+import Pagination from "./components/list-pagination";
 import EmptyState from "./components/empty-state";
 import LoadingState from "./components/loading-state";
+import SearchWithAI from "./components/search-with-ai";
 
 const SearchPage = () => {
   const insets = useSafeAreaInsets();
-  const isFocused = useIsFocused(); 
+  const isFocused = useIsFocused();
   const [searchQuery, setSearchQuery] = useState("");
+  const [contentSearchQuery, setContentSearchQuery] = useState("");
+  const [showContentSearch, setShowContentSearch] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<MovieBase[]>([]);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
@@ -35,16 +40,16 @@ const SearchPage = () => {
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const debounceSearch = useCallback((query: string, filters: any, page: number) => {
+  const debounceSearch = useCallback((query: string, contentQuery: string, filters: any, page: number) => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
 
     timeoutRef.current = setTimeout(() => {
       if (!isFocused) return;
-      
-      if (query.trim().length > 0 || Object.keys(filters).length > 0) {
-        fetchResults(query, filters, page);
+
+      if (query.trim().length > 0 || contentQuery.trim().length > 0 || Object.keys(filters).length > 0) {
+        fetchResults(query, contentQuery, filters, page);
       } else {
         setResults([]);
         setTotalPages(0);
@@ -55,7 +60,7 @@ const SearchPage = () => {
 
   useEffect(() => {
     if (isFocused) {
-      debounceSearch(searchQuery, activeFilters, currentPage);
+      debounceSearch(searchQuery, contentSearchQuery, activeFilters, currentPage);
     }
 
     return () => {
@@ -63,15 +68,16 @@ const SearchPage = () => {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [searchQuery, activeFilters, currentPage, isFocused]);
+  }, [searchQuery, contentSearchQuery, activeFilters, currentPage, isFocused]);
 
-  const fetchResults = async (query: string, filters: any, page: number) => {
+  const fetchResults = async (query: string, contentQuery: string, filters: any, page: number) => {
     if (!isFocused) return;
 
     try {
       setIsSearching(true);
       const response = await getFilteredMovies({
         name: query,
+        contentSearch: contentQuery,
         page,
         limit: 10,
         ...filters,
@@ -99,9 +105,14 @@ const SearchPage = () => {
 
   const handleClearSearch = () => {
     setSearchQuery("");
+    setContentSearchQuery("");
     setResults([]);
     setTotalPages(0);
     setTotalResults(0);
+  };
+
+  const toggleContentSearch = () => {
+    setShowContentSearch(!showContentSearch);
   };
 
   const goToNextPage = () => {
@@ -145,11 +156,22 @@ const SearchPage = () => {
         hasActiveFilters={hasActiveFilters}
       />
 
+      {/* AI Content Search Section */}
+      <View style={{ marginTop: insets.top + 60 }}>
+        <SearchWithAI
+          contentSearchQuery={contentSearchQuery}
+          onContentSearchChange={setContentSearchQuery}
+          onClearContentSearch={() => setContentSearchQuery("")}
+          onToggleContentSearch={toggleContentSearch}
+          showContentSearch={showContentSearch}
+        />
+      </View>
+
       {/* Main content */}
       <ScrollView
         className="flex-1"
         contentContainerStyle={{
-          paddingTop: insets.top + 70,
+          paddingTop: 20,
           paddingBottom: insets.bottom + 20,
         }}
         showsVerticalScrollIndicator={false}
@@ -175,7 +197,7 @@ const SearchPage = () => {
             />
           </View>
         ) : (
-          <EmptyState searchQuery={searchQuery} />
+          <EmptyState searchQuery={searchQuery || contentSearchQuery} />
         )}
       </ScrollView>
 
