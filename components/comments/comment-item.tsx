@@ -16,24 +16,17 @@ interface CommentItemProps {
 
 const CommentItem: React.FC<CommentItemProps> = ({ comment, currentUserId }) => {
   const [showReplies, setShowReplies] = useState(false);
-  const [showOptions, setShowOptions] = useState(false);
-  
-  const isCurrentUserComment = currentUserId && comment.userId === currentUserId;
-  const formattedDate = comment.createdAt 
+
+  const formattedDate = comment.createdAt
     ? formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true, locale: vi })
     : '';
-    
-  const handleLongPress = () => {
-    setShowOptions(true);
-  };
-  
+
   const toggleReplies = () => {
     setShowReplies(prev => !prev);
   };
 
   return (
-    <Pressable 
-      onLongPress={handleLongPress} 
+    <Pressable
       delayLongPress={300}
       className="mb-3"
     >
@@ -45,7 +38,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, currentUserId }) => 
               {comment.user.name?.charAt(0)?.toUpperCase() || '?'}
             </Text>
           </View>
-          
+
           {/* Comment content */}
           <VStack className="flex-1">
             <HStack className="items-center mb-1 flex-wrap">
@@ -55,31 +48,22 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, currentUserId }) => 
               <Text className="text-xs text-typography-500">
                 {formattedDate}
               </Text>
-              
-              {isCurrentUserComment && (
-                <TouchableOpacity 
-                  className="ml-auto p-1"
-                  onPress={() => setShowOptions(!showOptions)}
-                >
-                  <Ionicons name="ellipsis-horizontal" size={16} color="#9ca3af" />
-                </TouchableOpacity>
-              )}
             </HStack>
-            
+
             <Text className="text-typography-700 text-sm mb-2">
               {comment.content}
             </Text>
-            
+
             {/* Comment actions */}
             <HStack className="mt-1">
-              <TouchableOpacity 
+              <TouchableOpacity
                 className="flex-row items-center mr-5 py-1"
                 onPress={toggleReplies}
               >
-                <Ionicons 
-                  name={showReplies ? "chatbubble" : "chatbubble-outline"} 
-                  size={14} 
-                  color={showReplies ? "#f43f5e" : "#9ca3af"} 
+                <Ionicons
+                  name={showReplies ? "chatbubble" : "chatbubble-outline"}
+                  size={14}
+                  color={showReplies ? "#f43f5e" : "#9ca3af"}
                 />
                 <Text className={`text-xs ml-1 ${showReplies ? "text-primary-400" : "text-typography-600"}`}>
                   {comment.replyCount || 0} phản hồi
@@ -88,29 +72,11 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, currentUserId }) => 
             </HStack>
           </VStack>
         </HStack>
-        
-        {/* Options menu */}
-        {showOptions && isCurrentUserComment && (
-          <View className="absolute right-2 top-10 bg-secondary-300 rounded-lg p-2 shadow-md z-10">
-            <TouchableOpacity className="flex-row items-center py-2 px-3">
-              <Ionicons name="pencil-outline" size={16} color="#f9fafb" />
-              <Text className="text-typography-800 text-sm ml-2">
-                Sửa
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity className="flex-row items-center py-2 px-3">
-              <Ionicons name="trash-outline" size={16} color="#f43f5e" />
-              <Text className="text-error-400 text-sm ml-2">
-                Xóa
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        
+
         {/* Replies section */}
         {showReplies && (
-          <ReplySection 
-            commentId={comment.id} 
+          <ReplySection
+            commentId={comment.id}
             currentUserId={currentUserId}
           />
         )}

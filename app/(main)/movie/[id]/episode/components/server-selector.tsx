@@ -36,8 +36,8 @@ const ServerSelector = ({
           </View>
         </HStack>
 
-        {/* Elegant server options with improved layout */}
-        <View className="flex-row flex-wrap gap-2.5">
+        {/* Server Options */}
+        <VStack space='xs' className="w-full">
           {servers && servers.length > 0 ? (
             servers.map((server, idx) => {
               const isSelected = selectedServer?.server_name === server.server_name;
@@ -93,7 +93,7 @@ const ServerSelector = ({
               </Text>
             </View>
           )}
-        </View>
+        </VStack>
       </VStack>
     </Animated.View>
   );

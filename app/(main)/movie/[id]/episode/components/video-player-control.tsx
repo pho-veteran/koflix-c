@@ -36,7 +36,7 @@ interface VideoPlayerControlsProps {
   episodeServerName?: string;
   episodeServerFileName?: string;
   m3u8Url?: string;
-  mp4Url?: string; // Add this prop
+  mp4Url?: string;
   thumbUrl?: string;
 
   // Playback speed props
@@ -73,7 +73,7 @@ const VideoPlayerControls = ({
   episodeServerName,
   episodeServerFileName,
   m3u8Url,
-  mp4Url, // Add this prop
+  mp4Url,
   thumbUrl,
   playbackRate,
   onChangePlaybackRate,
@@ -263,7 +263,7 @@ const VideoPlayerControls = ({
                       episodeServerName={episodeServerName || ''}
                       episodeServerFileName={episodeServerFileName || filename || ''}
                       m3u8Url={m3u8Url}
-                      mp4Url={mp4Url} // Add this prop
+                      mp4Url={mp4Url}
                       thumbUrl={thumbUrl}
                       showText={isFullscreen}
                       size={20}

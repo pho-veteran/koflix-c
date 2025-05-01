@@ -8,7 +8,7 @@ import { getReplies } from '@/api/user-movie';
 import { formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { Reply } from '@/types/user-movie-type';
-import CommentInput from './comment-input'; 
+import CommentInput from './comment-input';
 import Animated, { FadeIn, SlideInLeft } from 'react-native-reanimated';
 
 interface ReplySectionProps {
@@ -19,7 +19,6 @@ interface ReplySectionProps {
 const ReplySection: React.FC<ReplySectionProps> = ({ commentId, currentUserId }) => {
   const [replies, setReplies] = useState<Reply[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showOptions, setShowOptions] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
 
@@ -58,32 +57,31 @@ const ReplySection: React.FC<ReplySectionProps> = ({ commentId, currentUserId })
   };
 
   return (
-    <Animated.View 
+    <Animated.View
       entering={FadeIn.duration(300)}
       className="ml-10 mt-1 border-l-2 border-secondary-300/20 pl-3"
     >
       {/* Reply input */}
-      <CommentInput 
+      <CommentInput
         episodeId={undefined}
         movieId={undefined}
         onCommentAdded={handleReplyAdded}
         placeholder="Thêm phản hồi..."
         replyToComment={commentId}
       />
-      
+
       {/* Replies list */}
       {loading ? (
         <ActivityIndicator size="small" color="#f43f5e" className="my-2" />
       ) : (
         <VStack>
           {replies.map((reply, index) => (
-            <Animated.View 
+            <Animated.View
               key={reply.id}
-              entering={SlideInLeft.delay(index * 50).duration(300)} 
+              entering={SlideInLeft.delay(index * 50).duration(300)}
               className="mb-2"
             >
               <Pressable
-                onLongPress={() => currentUserId === reply.userId && setShowOptions(reply.id)}
                 delayLongPress={300}
               >
                 <View className="bg-secondary-200/5 rounded-lg p-2">
@@ -93,7 +91,7 @@ const ReplySection: React.FC<ReplySectionProps> = ({ commentId, currentUserId })
                         {reply.user.name?.charAt(0)?.toUpperCase() || '?'}
                       </Text>
                     </View>
-                    
+
                     <VStack className="flex-1">
                       <HStack className="items-center mb-1 flex-wrap">
                         <Text className="font-medium text-typography-800 text-sm mr-2">
@@ -102,45 +100,18 @@ const ReplySection: React.FC<ReplySectionProps> = ({ commentId, currentUserId })
                         <Text className="text-xs text-typography-500">
                           {formatDistanceToNow(new Date(reply.createdAt), { addSuffix: true, locale: vi })}
                         </Text>
-                        
-                        {reply.userId === currentUserId && (
-                          <TouchableOpacity 
-                            className="ml-auto p-1"
-                            onPress={() => setShowOptions(showOptions === reply.id ? null : reply.id)}
-                          >
-                            <Ionicons name="ellipsis-horizontal" size={14} color="#9ca3af" />
-                          </TouchableOpacity>
-                        )}
                       </HStack>
-                      
+
                       <Text className="text-typography-700 text-sm">{reply.content}</Text>
-                      
-                      {/* Reply options menu */}
-                      {showOptions === reply.id && (
-                        <View className="absolute right-0 top-6 bg-secondary-300 rounded-lg p-1 shadow-md z-10">
-                          <TouchableOpacity className="flex-row items-center py-1 px-2">
-                            <Ionicons name="pencil-outline" size={14} color="#f9fafb" />
-                            <Text className="text-typography-800 text-xs ml-1">
-                              Sửa
-                            </Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity className="flex-row items-center py-1 px-2">
-                            <Ionicons name="trash-outline" size={14} color="#f43f5e" />
-                            <Text className="text-error-400 text-xs ml-1">
-                              Xóa
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
                     </VStack>
                   </HStack>
                 </View>
               </Pressable>
             </Animated.View>
           ))}
-          
+
           {hasMore && (
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={handleLoadMore}
               className="flex-row items-center justify-center py-2"
             >

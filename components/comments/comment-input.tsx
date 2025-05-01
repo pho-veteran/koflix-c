@@ -98,8 +98,8 @@ const CommentInput: React.FC<CommentInputProps> = ({
                 />
             </HStack>
 
-            {/* Action buttons when focused - increased size */}
-            {isFocused && (
+            {/* Action buttons when focused or comment input has text */}
+            {(isFocused || comment.trim()) && (
                 <Animated.View
                     entering={FadeIn.duration(200)}
                     exiting={FadeOut.duration(200)}
@@ -117,15 +117,15 @@ const CommentInput: React.FC<CommentInputProps> = ({
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        className={`px-4 py-3 rounded-xl items-center justify-center ${comment.trim() ? 'bg-primary-400' : 'bg-secondary-400/50'}`}
+                        className={`px-4 py-3 rounded-xl items-center justify-center bg-primary-400`}
                         onPress={handleSubmit}
-                        disabled={!comment.trim() || isSubmitting}
+                        disabled={isSubmitting}
                         style={{ minWidth: 48 }}
                     >
                         {isSubmitting ? (
                             <ActivityIndicator size="small" color="#fff" />
                         ) : (
-                            <Ionicons name="send" size={20} color={comment.trim() ? "#fff" : "#9ca3af"} />
+                            <Ionicons name="send" size={20} color="#fff" />
                         )}
                     </TouchableOpacity>
                 </Animated.View>
