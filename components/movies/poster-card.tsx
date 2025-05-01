@@ -68,7 +68,6 @@ const PosterCard: React.FC<PosterCardProps> = ({
             transition={ANIMATION.IMAGE_TRANSITION}
             onLoadStart={() => setIsLoading(true)}
             onLoadEnd={() => setIsLoading(false)}
-            cachePolicy="memory-disk"
           />
 
           {isLoading && (
