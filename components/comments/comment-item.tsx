@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TouchableOpacity, Pressable } from 'react-native';
+import { View, TouchableOpacity, Pressable, Image } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
@@ -34,9 +34,17 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, currentUserId }) => 
         <HStack className="items-start">
           {/* User avatar */}
           <View className="h-9 w-9 rounded-full bg-primary-500/30 items-center justify-center mr-3 mt-0.5">
-            <Text className="text-primary-500 font-bold">
-              {comment.user.name?.charAt(0)?.toUpperCase() || '?'}
-            </Text>
+            {comment.user.avatarUrl ? (
+              <Image 
+                source={{ uri: comment.user.avatarUrl }} 
+                className="h-9 w-9 rounded-full"
+                resizeMode="cover"
+              />
+            ) : (
+              <Text className="text-primary-500 font-bold">
+                {comment.user.name?.charAt(0)?.toUpperCase() || '?'}
+              </Text>
+            )}
           </View>
 
           {/* Comment content */}

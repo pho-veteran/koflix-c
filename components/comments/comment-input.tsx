@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, TextInput, TouchableOpacity, ActivityIndicator, Keyboard } from 'react-native';
+import { View, TextInput, TouchableOpacity, ActivityIndicator, Keyboard, Image } from 'react-native';
 import { HStack } from '@/components/ui/hstack';
 import { Text } from '@/components/ui/text';
 import { Ionicons } from '@expo/vector-icons';
@@ -55,7 +55,7 @@ const CommentInput: React.FC<CommentInputProps> = ({
                 user: {
                     id: user.id,
                     name: user.name || 'User',
-                    avatarUrl: null
+                    avatarUrl: user.avatarUrl
                 },
                 replyCount: 0
             };
@@ -77,9 +77,17 @@ const CommentInput: React.FC<CommentInputProps> = ({
             <HStack className="bg-secondary-300/20 rounded-2xl overflow-hidden pl-4 pr-2 py-2 items-center">
                 {/* User avatar - increased size */}
                 <View className="h-10 w-10 rounded-full bg-primary-500/20 items-center justify-center mr-3">
-                    <Text className="text-primary-400 text-base font-medium">
-                        {userInitial}
-                    </Text>
+                    {user?.avatarUrl ? (
+                        <Image 
+                            source={{ uri: user.avatarUrl }} 
+                            className="h-10 w-10 rounded-full" 
+                            resizeMode="cover"
+                        />
+                    ) : (
+                        <Text className="text-primary-400 text-base font-medium">
+                            {userInitial}
+                        </Text>
+                    )}
                 </View>
 
                 {/* Input field - increased text size and padding */}
