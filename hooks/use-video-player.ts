@@ -207,6 +207,8 @@ export function useVideoPlayer(options: UseVideoPlayerOptions = {}) {
     const newTime = Math.max(0, Math.min(duration, currentTime + seconds));
     setCurrentTime(newTime);
     
+    setShowControls(true);
+    
     if (videoRef.current) {
       videoRef.current.seek(newTime);
     }
